@@ -3,7 +3,7 @@
 {% macro row(entry, show_path=false) %}
 <li><a class="row" href="{{ entry.href }}">
   <span class="row-title">{{ entry.title }}</span>
-  <span class="meta">{% if show_path %}{{ entry.path }} · {% endif %}{{ entry.modified }}</span>
+  <span class="meta">{{ entry.path if show_path else entry.name }} · {{ entry.modified }}</span>
 </a></li>
 {% endmacro %}
 

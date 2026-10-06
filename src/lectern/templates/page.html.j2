@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="solarized" data-size="m">
+<html lang="en" data-theme="solarized-light" data-width="m">
 <head>
 <meta charset="utf-8">
 <title>{{ title }}</title>
@@ -17,11 +17,14 @@
 <link rel="stylesheet" href="{{ static }}/themes.css">
 <link rel="stylesheet" href="{{ static }}/reader.css">
 <link rel="stylesheet" href="{{ static }}/pygments.css">
+<script src="{{ static }}/boot.js"></script>
+<script src="{{ static }}/reader.js" defer></script>
 </head>
 <body>
+{% block body %}
 <header class="bar">
 {% if back %}
-  <a class="back" href="{{ back }}" aria-label="Back to {{ crumbs[-1].name if crumbs else 'the listing' }}">
+  <a class="bar-button back" href="{{ back }}" aria-label="Back to {{ crumbs[-1].name if crumbs else 'the listing' }}">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </a>
 {% endif %}
@@ -31,6 +34,14 @@
 
 {% endfor %}
   </nav>
+{% if toc and toc | length > 1 %}
+  <button class="bar-button" type="button" data-open="toc" aria-label="Contents">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+{% endif %}
+  <button class="bar-button" type="button" data-open="settings" aria-label="Reading settings">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 18l4.5-12h1L13 18M4.6 14h6.8M15.5 18l2.7-7h.6l2.7 7M16.5 15.6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
 </header>
 {% block main %}
 {% if stale %}
@@ -39,6 +50,62 @@
 <main class="doc" data-path="{{ path }}" data-mtime="{{ mtime }}">
 {{ fragment | safe }}
 </main>
+{% endblock %}
+
+{% if toc and toc | length > 1 %}
+<dialog class="sheet" id="toc" aria-label="Contents">
+  <div class="sheet-panel" tabindex="-1" autofocus>
+    <header class="sheet-head"><h2>Contents</h2><button type="button" data-close>Done</button></header>
+    <nav class="toc">
+{% for heading in toc %}
+      <a class="toc-{{ heading.level }}" href="#{{ heading.id | urlencode }}">{{ heading.text }}</a>
+{% endfor %}
+    </nav>
+  </div>
+</dialog>
+{% endif %}
+
+<dialog class="sheet" id="settings" aria-label="Reading settings">
+  <div class="sheet-panel" tabindex="-1" autofocus>
+    <header class="sheet-head"><h2>Reading</h2><button type="button" data-close>Done</button></header>
+    <section class="setting">
+      <h3>Text size</h3>
+      <div class="stepper">
+        <button type="button" data-size-step="-1" aria-label="Smaller text">−</button>
+        <output data-size-value>19 px</output>
+        <button type="button" data-size-step="1" aria-label="Larger text">+</button>
+      </div>
+    </section>
+    <section class="setting">
+      <h3>Column width</h3>
+      <div class="choice">
+        <button type="button" data-pref="width" data-value="n">Narrow</button>
+        <button type="button" data-pref="width" data-value="m">Medium</button>
+        <button type="button" data-pref="width" data-value="w">Wide</button>
+      </div>
+    </section>
+    <section class="setting">
+      <h3>Colours</h3>
+      <div class="choice">
+        <button type="button" data-pref="family" data-value="solarized">Solarized</button>
+        <button type="button" data-pref="family" data-value="plain">Black &amp; white</button>
+      </div>
+      <div class="choice">
+        <button type="button" data-pref="mode" data-value="light">Light</button>
+        <button type="button" data-pref="mode" data-value="dark">Dark</button>
+        <button type="button" data-pref="mode" data-value="system">Follow system</button>
+      </div>
+    </section>
+    <section class="setting">
+      <h3>Code cells</h3>
+      <div class="choice">
+        <button type="button" data-pref="hideCode" data-value="false">Shown</button>
+        <button type="button" data-pref="hideCode" data-value="true">Hidden</button>
+      </div>
+    </section>
+    <p class="sheet-note">Saved on this device.</p>
+  </div>
+</dialog>
 {% endblock %}
 </body>
 </html>

@@ -1,0 +1,18 @@
+{#-
+  The start page, the one the Home Screen icon opens. It is served with a long cache
+  lifetime so the browser can show it with the server stopped; reader.js then either moves
+  on to the listing or says that lectern is not running. Nothing here may depend on what
+  is being served: this copy can be months old when it is shown.
+-#}
+{% extends "page.html.j2" %}
+
+{% block body %}
+<main class="offline" id="offline" data-home="/_home" data-assets="{{ assets }}">
+  <h1>Lectern</h1>
+  <div class="offline-msg" hidden>
+    <p><strong>Lectern is not running.</strong></p>
+    <p>On your Mac, run <code>lectern serve</code> in the folder you want to read. This page will carry on by itself.</p>
+  </div>
+  <noscript><p><a href="/_home">Open the listing</a></p></noscript>
+</main>
+{% endblock %}

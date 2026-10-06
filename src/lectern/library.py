@@ -185,6 +185,9 @@ def listing(top: Path) -> Listing:
         (group.notebooks if path.suffix.lower() == ".ipynb" else group.pages).append(entry)
 
     ordered = [groups[parts] for parts in sorted(groups, key=lambda p: [s.lower() for s in p])]
+    for group in ordered:
+        # A folder's README introduces it, so it leads the folder's pages.
+        group.pages.sort(key=lambda e: not e.name.lower().startswith("readme."))
     recent = sorted(entries, key=lambda e: e.mtime, reverse=True)[:RECENT]
     # In a small folder the strip would only repeat most of what is below it.
     return Listing(ordered, recent if len(entries) > 2 * RECENT else [])

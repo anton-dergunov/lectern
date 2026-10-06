@@ -1,14 +1,14 @@
 /* Layout and typography. Colours come from themes.css.
    Sized for an 820px portrait viewport: 19px body in a 36rem column, 14px code that fits
-   88 columns unscrolled, code and outputs running wider than the prose. */
+   88 columns unscrolled. Code, outputs and tables get 4rem more than the prose on each
+   side where the screen has it, which is what 88 columns need. */
 
 :root {
   --font-body: Charter, "Iowan Old Style", ui-serif, "Noto Serif", Georgia, serif;
   --font-code: ui-monospace, "SF Mono", Menlo, "Roboto Mono", "Noto Sans Mono", monospace;
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --leading: 1.6;
-  --measure: 36rem;
-  --wide: 62rem;
+  --wide: calc(var(--measure) + 8rem);
   --code-size: 0.737rem;   /* 14px at the default size */
   --stream-size: 0.71rem;  /* 13.5px */
   --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
@@ -50,18 +50,27 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   font: 0.74rem/1.2 var(--font-ui);
+  transition: transform 0.22s ease;
 }
-.bar a { color: var(--fg); text-decoration: none; }
-.back {
+/* Set by reader.js while reading downwards. */
+.bar-away .bar { transform: translateY(-101%); }
+.bar a, .bar button { color: var(--fg); text-decoration: none; }
+.bar-button {
   display: grid;
   place-items: center;
   flex: none;
   width: 44px;
   height: 44px;
-  margin-left: -13px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
+.bar-button.back { margin-left: -13px; }
+.bar-button:last-child { margin-right: -11px; }
 .crumbs {
   display: flex;
+  flex: 1;
   align-items: center;
   min-width: 0;
   overflow-x: auto;
@@ -90,8 +99,10 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
   padding: 1.6rem var(--gutter) calc(5rem + env(safe-area-inset-bottom));
 }
 
+/* Room for the bar when a link or the contents list jumps to a heading. */
+.cell, h1, h2, h3, h4 { scroll-margin-top: 3.4rem; }
 .cell { margin: 0; }
-.cell.code { margin: 1.3rem 0; }
+.cell.code { position: relative; margin: 1.3rem 0; }
 
 /* Prose keeps to the reading measure; tables and code blocks inside it may run wider. */
 .cell.md > *,
@@ -172,36 +183,50 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 .cell.md > .highlight, .cell.md > pre { margin-top: 0; margin-bottom: 0.9rem; }
 
 .src { position: relative; }
+/* "Show" and "Hide" sit in the same corner, in the same type, whichever state the cell is in. */
 .src > summary {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.62rem 0.7rem;
+  border-radius: 6px;
   list-style: none;
   cursor: pointer;
-  font: 0.68rem/1 var(--font-ui);
+  font: 0.66rem/1 var(--font-ui);
   color: var(--fg-muted);
   -webkit-user-select: none;
   user-select: none;
 }
 .src > summary::-webkit-details-marker { display: none; }
-/* Closed: a full-width bar that says what is hidden. */
-.src:not([open]) > summary {
-  padding: 0.8rem 0.85rem;
-  border-radius: 6px;
-  background: var(--bg-alt);
-  color: var(--fg);
-}
-.src:not([open]) > summary::after { content: "Show"; float: right; color: var(--link); }
-/* Open: only a small control in the corner of the block. */
+.src > summary .label { margin-right: auto; color: var(--fg); }
+.src:not([open]) > summary { background: var(--bg-alt); }
+.src:not([open]) > summary::after { content: "Show"; }
 .src[open] > summary {
   position: absolute;
   top: 0;
   right: 0;
   z-index: 1;
-  padding: 0.6rem 0.7rem;
   /* Opaque, so a long first line passes under it instead of through it. */
   border-radius: 0 6px 0 6px;
   background: var(--bg-alt);
 }
 .src[open] > summary .label { display: none; }
 .src[open] > summary::after { content: "Hide"; }
+
+/* The cell's number, to find it again in the notebook: in the margin where the screen has
+   one, otherwise beside Show/Hide. The clamp flips between the two positions at the width
+   where 3rem of margin appears. */
+.cell-n {
+  position: absolute;
+  top: 0.62rem;
+  left: clamp(-2.9rem, (3rem - 16px - (100vw - var(--wide)) / 2) * 9999, 100% - 6.3rem);
+  z-index: 2;
+  width: 2.5rem;
+  text-align: right;
+  font: 0.6rem/1.1 var(--font-ui);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
 
 /* ---- Outputs ---- */
 
@@ -224,13 +249,27 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 /* One per printed line: wrapped continuations hang, so they are not taken for new lines. */
 .stream .l { display: block; padding-left: 2ch; text-indent: -2ch; }
 .stream.stderr { padding-left: 0.6rem; border-left: 2px solid var(--accent); }
+/* Both set by reader.js: a long block starts with its first 30 lines, and "No wrap" trades
+   wrapping for scrolling sideways. */
+.stream.clamped .l:nth-child(n + 31) { display: none; }
+.stream:not(.wrap) { white-space: pre; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.stream:not(.wrap) .l { padding-left: 0; text-indent: 0; }
+.out > .stream-tools { display: flex; gap: 1.1rem; margin-top: 0.3rem; }
+.stream-tools button {
+  padding: 0.35rem 0;
+  border: 0;
+  background: none;
+  font: 0.66rem/1 var(--font-ui);
+  color: var(--link);
+  cursor: pointer;
+}
 .error { padding-left: 0.6rem; border-left: 2px solid var(--err); }
 
 figure.img { margin: 0; }
 figure.img img { display: block; }
 
 .math { font-family: var(--font-code); font-size: 0.82em; }
-.math.display { overflow-x: auto; white-space: pre-wrap; }
+.math.display { display: block; overflow-x: auto; white-space: pre-wrap; }
 
 /* ---- Tables ---- */
 
@@ -326,6 +365,118 @@ td.num { text-align: right; }
 .row .meta { flex: none; max-width: 55%; text-align: right; overflow-wrap: anywhere; }
 .empty { color: var(--fg); }
 .listing .error { margin-top: 1rem; }
+
+/* ---- Sheets: contents and settings ---- */
+
+dialog.sheet {
+  width: min(21rem, 88vw);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+dialog.sheet::backdrop { background: var(--shade); }
+/* Takes the focus when the sheet opens, so no button starts out ringed. */
+.sheet-panel:focus { outline: none; }
+.sheet-panel {
+  min-height: 100%;
+  padding: calc(env(safe-area-inset-top) + 0.4rem) max(1.1rem, env(safe-area-inset-right))
+    calc(env(safe-area-inset-bottom) + 1.5rem) 1.1rem;
+}
+.sheet-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  background: var(--bg);
+}
+.sheet-head h2 {
+  margin: 0;
+  font: 600 0.68rem/1.3 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.sheet-head button {
+  min-height: 44px;
+  padding: 0 0 0 1rem;
+  border: 0;
+  background: none;
+  font: 600 0.8rem/1 var(--font-ui);
+  color: var(--link);
+  cursor: pointer;
+}
+.sheet-note { margin: 1.6rem 0 0; font-size: 0.68rem; color: var(--fg-muted); }
+
+.toc { display: flex; flex-direction: column; margin-top: 0.4rem; }
+.toc a {
+  padding: 0.5rem 0 0.5rem 0.7rem;
+  border-left: 2px solid transparent;
+  color: var(--fg);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  text-decoration: none;
+}
+.toc .toc-1 { color: var(--fg-strong); font-weight: 600; }
+.toc .toc-2 { padding-left: 0.7rem; }
+.toc .toc-3 { padding-left: 1.7rem; font-size: 0.74rem; }
+.toc a[aria-current] { border-left-color: var(--accent); color: var(--fg-strong); }
+
+.setting { margin-top: 1.3rem; }
+.setting h3 { margin: 0 0 0.5rem; font: 400 0.74rem/1.3 var(--font-ui); color: var(--fg); letter-spacing: 0; }
+.choice, .stepper {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.choice + .choice { margin-top: 0.5rem; }
+.choice button, .stepper button, .stepper output {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 0.3rem;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: 0.76rem/1.2 var(--font-ui);
+}
+.choice button, .stepper button { cursor: pointer; }
+.choice button + button, .stepper > * + * { border-left: 1px solid var(--rule); }
+.choice button[aria-pressed="true"] { background: var(--bg-alt); color: var(--fg-strong); font-weight: 600; }
+.stepper button { flex: 0 0 30%; font-size: 1.1rem; }
+.stepper button:disabled { color: var(--fg-muted); cursor: default; }
+.stepper output { display: grid; place-items: center; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+
+/* ---- "Lectern is not running", and the start page while it finds out ---- */
+
+.offline {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem var(--gutter);
+  background: var(--bg);
+  text-align: center;
+}
+.offline[hidden] { display: none; }
+.offline h1 { margin: 0 0 1.2rem; font-size: 1.9rem; }
+.offline-msg { max-width: 24rem; font-size: 0.9rem; }
+.offline-msg p { margin-bottom: 0.6em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar { transition: none; }
+}
 
 @media (max-width: 480px) {
   h1 { font-size: 1.6rem; }

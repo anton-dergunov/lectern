@@ -24,7 +24,10 @@ def test_notebook_structure(root: Path):
 
     assert fragment.count('<section class="cell md"') == 1
     assert fragment.count('<section class="cell code"') == 2
-    assert '<details class="src" open' in fragment
+    assert '<details class="src" data-lines="2" open' in fragment
+    assert '<span class="cell-n" title="This cell in the notebook">[1]</span>' in fragment
+    # A cell that was never run is numbered by its position instead.
+    assert ">#3</span>" in fragment
     # The 40-line cell starts collapsed and says how long it is.
     assert "Code · 40 lines" in fragment
     assert '<pre class="stream wrap"><span class="l">hello\n</span>' in fragment

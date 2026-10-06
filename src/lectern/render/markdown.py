@@ -20,12 +20,14 @@ class ReaderMarkdownRenderer(IPythonRenderer):
     def inline_math(self, body: str) -> str:
         return f'<span class="math inline">{self.escape_html(body)}</span>'
 
+    # Display math is still inline content to the parser, so it lands inside a <p>:
+    # a span, shown as a block by the stylesheet.
     def block_math(self, body: str) -> str:
-        return f'<div class="math display">{self.escape_html(body)}</div>'
+        return f'<span class="math display">{self.escape_html(body)}</span>'
 
     def latex_environment(self, name: str, body: str) -> str:
         name, body = self.escape_html(name), self.escape_html(body)
-        return f'<div class="math display">\\begin{{{name}}}{body}\\end{{{name}}}</div>'
+        return f'<span class="math display">\\begin{{{name}}}{body}\\end{{{name}}}</span>'
 
 
 def markdown_to_html(source: str, **renderer_options) -> str:

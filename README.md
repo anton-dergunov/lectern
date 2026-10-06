@@ -9,7 +9,10 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time;
 - each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, wide tables that scroll sideways on their own;
 - markdown files as pages in the same style, with the links between notebooks and documents working;
-- Solarized Light colours and type sized for an iPad held in portrait;
+- a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
+- long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
+- reading settings saved per device: text size, column width, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
+- a top bar that gets out of the way while you read down and comes back when you scroll up;
 - a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars.
 
 Notebooks are shown as they were last saved, including ones you have not committed. Save the notebook and reload the page to see the change.
@@ -51,6 +54,8 @@ lectern  serving agent-memory-eval (4 notebooks, 4 markdown files)
 
 Open the first address on the tablet. The second is for devices that cannot resolve `.local` names; it changes when the router hands the laptop a different address.
 
+If lectern is stopped while a page is open, following a link shows "Lectern is not running" instead of a browser error, and the page carries on by itself once `lectern serve` is running again.
+
 `lectern serve PATH…` serves other directories, each under its own name. `--port` changes the port (default 8642), `--host` the address to listen on, and `--verbose` prints each request.
 
 ### Full screen on an iPad
@@ -65,7 +70,16 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
 
-`HANDOFF.md` holds the design and the milestones still to build.
+Two scripts drive real browsers (Chromium and WebKit) against the test fixtures. They need the browsers once: `uv run --group shots playwright install chromium webkit`.
+
+```sh
+uv run --group shots python scripts/check_reader.py     # behaviour: position, settings, contents, server stopped
+uv run --group shots python scripts/shots.py --out shots  # screenshots at the iPad's size
+```
+
+After a deliberate change to how notebooks render, `uv run pytest --update-golden` rewrites `tests/golden`; read the diff before committing it.
+
+`HANDOFF.md` holds the design and the milestones still to build; `docs/tasks/plan.md` holds ideas outside them.
 
 ## License and credits
 

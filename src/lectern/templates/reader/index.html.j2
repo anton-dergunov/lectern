@@ -28,6 +28,7 @@
 {% block codecell scoped %}
 {%- if cell.source.strip() or cell.outputs %}
 <section class="cell code" id="c-{{ cell.id }}">
+<span class="cell-n" title="This cell in the notebook">{{ cell.metadata.lectern_label }}</span>
 {{ super.super() }}
 </section>
 {%- endif %}
@@ -36,7 +37,7 @@
 {% block input_group %}
 {%- if cell.source.strip() %}
 {%- set n = cell.source.strip().count('\n') + 1 %}
-<details class="src"{% if n <= 30 %} open{% endif %}>
+<details class="src" data-lines="{{ n }}"{% if n <= 30 %} open{% endif %}>
 <summary><span class="label">Code · {{ n }} line{{ '' if n == 1 else 's' }}</span></summary>
 {{ cell.source | highlight_code(metadata=cell.metadata) }}
 </details>

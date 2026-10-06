@@ -18,8 +18,19 @@ def request(server, path: str, method: str = "GET", headers: dict | None = None)
         connection.close()
 
 
+def test_start_page_can_be_shown_without_the_server(server):
+    response, body = request(server, "/")
+
+    assert response.status == 200
+    # Cached for long enough to still be there when the server is not.
+    assert "max-age=31536000" in response.getheader("Cache-Control")
+    assert 'id="offline"' in body and "Lectern is not running" in body
+    # It must not depend on what is being served: it may be shown months later.
+    assert "proj" not in body
+
+
 def test_single_root_opens_on_its_listing(server):
-    response, _ = request(server, "/")
+    response, _ = request(server, "/_home")
     assert response.status == 302 and response.getheader("Location") == "/proj/"
 
     response, body = request(server, "/proj/")
@@ -27,7 +38,7 @@ def test_single_root_opens_on_its_listing(server):
     assert 'href="notebooks/sample.ipynb"' in body and "Sample notebook" in body
     assert 'href="docs/note.md"' in body
     # Hidden and build directories are not listed.
-    assert "hidden" not in body and "dep.md" not in body
+    assert "hidden.md" not in body and "dep.md" not in body
 
 
 def test_notebook_page(server):
@@ -35,7 +46,11 @@ def test_notebook_page(server):
 
     assert response.status == 200
     assert "<title>Sample notebook</title>" in body
-    assert "In [" not in body and "<script" not in body
+    assert "In [" not in body
+    # Scripts are the reader's own files; nothing inline, nothing from the notebook.
+    assert "<script>" not in body and body.count("<script") == body.count('<script src="/_static/')
+    assert 'data-open="settings"' in body and 'id="toc"' in body
+    assert '<a class="toc-2" href="#Part-2">Part</a>' in body
     assert 'name="apple-mobile-web-app-capable"' in body and 'rel="apple-touch-icon"' in body
     assert 'href="/proj/notebooks/"' in body
     assert "script-src 'self'" in response.getheader("Content-Security-Policy")
@@ -149,7 +164,8 @@ def test_static_assets_and_manifest(server):
 
 def test_ping(server):
     _, body = request(server, "/_ping")
-    assert json.loads(body)["app"] == "lectern" and json.loads(body)["roots"] == ["proj"]
+    ping = json.loads(body)
+    assert ping["app"] == "lectern" and ping["roots"] == ["proj"] and ping["assets"]
 
 
 def test_several_roots_get_a_front_page(root: Path, tmp_path: Path):
@@ -161,7 +177,7 @@ def test_several_roots_get_a_front_page(root: Path, tmp_path: Path):
     server = make_server({"proj": root, "other": other}, host="127.0.0.1", port=0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        response, body = request(server, "/")
+        response, body = request(server, "/_home")
         assert response.status == 200
         assert 'href="/proj/"' in body and 'href="/other/"' in body
         assert request(server, "/other/readme.md")[0].status == 200

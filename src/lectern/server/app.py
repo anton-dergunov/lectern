@@ -94,13 +94,21 @@ class ReaderHandler(BaseHTTPRequestHandler):
         raw = urlsplit(self.path).path
         path = unquote(raw)
         if path == "/_ping":
-            ping = {"app": APP_NAME, "version": __version__, "roots": sorted(self.server.roots)}
-            self._send(HTTPStatus.OK, json.dumps(ping).encode(), "application/json")
+            ping = {
+                "app": APP_NAME,
+                "version": __version__,
+                "roots": sorted(self.server.roots),
+                "assets": asset_hash(),
+            }
+            headers = {"Cache-Control": "no-store"}
+            self._send(HTTPStatus.OK, json.dumps(ping).encode(), "application/json", headers)
         elif path == "/manifest.webmanifest":
             self._send(HTTPStatus.OK, _manifest(), "application/manifest+json")
         elif path.startswith("/_static/"):
             self._static(path)
         elif path == "/":
+            self._shell()
+        elif path == "/_home":
             self._home()
         else:
             self._under_root(raw, path)
@@ -127,6 +135,16 @@ class ReaderHandler(BaseHTTPRequestHandler):
         except ValueError:
             return False
         return True
+
+    def _shell(self) -> None:
+        """The start page, cacheable for a year so it opens even with the server stopped.
+
+        It decides in the browser between going on to `/_home` and saying that lectern is
+        not running, and refreshes its own cached copy when the assets have changed.
+        """
+        html = render_page("shell.html.j2", title="Lectern", assets=asset_hash())
+        caching = {"Cache-Control": "public, max-age=31536000, immutable"}
+        self._send(HTTPStatus.OK, html.encode(), HTML, caching)
 
     def _home(self) -> None:
         roots = self.server.roots
@@ -159,7 +177,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
 
     def _crumbs(self, root_name: str, parts: list[str]) -> list[Crumb]:
         """The root and each directory in `parts`, each linking to its listing."""
-        crumbs = [Crumb("Lectern", "/")] if len(self.server.roots) > 1 else []
+        crumbs = [Crumb("Lectern", "/_home")] if len(self.server.roots) > 1 else []
         href = f"/{quote(root_name)}/"
         crumbs.append(Crumb(root_name, href))
         for part in parts:
@@ -208,6 +226,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             crumbs=crumbs,
             back=crumbs[-1].href,
             fragment=hit.rendered.fragment,
+            toc=hit.rendered.toc,
             stale=hit.stale,
             path=f"{root_name}/{rel}",
             mtime=target.stat().st_mtime_ns,
@@ -245,7 +264,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             message=message,
             detail=detail,
             retry=retry,
-            crumbs=[Crumb("Lectern", "/")]
+            crumbs=[Crumb("Lectern", "/_home")]
             if len(roots) > 1
             else self._crumbs(next(iter(roots)), []),
         )

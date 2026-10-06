@@ -24,6 +24,8 @@ lectern = "lectern.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.3", "ruff>=0.16.10"]
+# For scripts/shots.py and scripts/check_reader.py, which drive real browsers.
+shots = ["playwright>=1.50"]
 
 [build-system]
 requires = ["hatchling"]
@@ -38,8 +40,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-# The formatter would otherwise rewrite the Python snippets inside the design notes.
-extend-exclude = ["*.md"]
+# The formatter would otherwise rewrite the Python snippets inside the design notes, and
+# the code cells of the fixture notebooks, which the golden HTML is compared against.
+extend-exclude = ["*.md", "tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]

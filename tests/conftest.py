@@ -18,6 +18,14 @@ PANDAS_HTML = """<div>
 </div>"""
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        help="rewrite tests/golden from the current rendering instead of comparing",
+    )
+
+
 def write_notebook(path: Path, cells: list, **metadata) -> Path:
     nb = v4.new_notebook(cells=cells, metadata=metadata)
     path.parent.mkdir(parents=True, exist_ok=True)

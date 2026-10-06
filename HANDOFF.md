@@ -2,11 +2,13 @@
 
 ## State on 2026-10-06
 
-**Milestone 1 is built** and verified on the Mac: `uv run pytest` passes, `lectern serve` in agent-memory-eval serves the listing, all four notebooks and the markdown files, and headless Chrome screenshots at 820×1180 were checked by eye. **Not yet done from milestone 1:** opening the `.local` address on the iPad in Safari and Add to Home Screen. agent-memory-eval and ml-explorations are untouched.
+**Milestones 1 and 2 are built.** Milestone 1 was tried on the iPad and the desktop by Anton; his spoken feedback is at `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt` and shaped milestone 2. Milestone 2 is verified on the Mac only: `uv run pytest` (golden fragments included) and `uv run --group shots python scripts/check_reader.py`, which drives Chromium and WebKit. **Not yet done:** trying milestone 2 on the iPad. agent-memory-eval and ml-explorations are untouched.
 
-**Next step:** the iPad check, then milestone 2 (section 13).
+**Next step:** the iPad check of milestone 2, then milestone 3 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
 
 Where the build differs from the design below (the design text is left as written):
+
+Rendering and server:
 
 - **Template:** `classic/base.html.j2` wraps cells, inputs and outputs in classic-notebook `div`s, so the reader template reaches past it with `super.super()` for `codecell`, `output_group`, `output` and `error`, and writes every leaf block itself. Classic's `conf.json` also enables `CSSHTMLHeaderPreprocessor`; the reader's `conf.json` disables it.
 - **Output priority:** the widget and javascript MIME types are removed from `display_data_priority`, so such an output falls back to its HTML, image or text form instead of rendering as nothing.
@@ -14,19 +16,32 @@ Where the build differs from the design below (the design text is left as writte
 - **Host check:** any IP literal is accepted (a rebinding attack needs a hostname), plus `localhost` and `<LocalHostName>.local`. No list of LAN IPs to keep current.
 - **Tables:** every table is wrapped and classified in one pass after rendering (`render/document.py`), so markdown pipe tables get the same treatment as pandas ones. Numeric cells get `class="num"`. The sticky header row is not done: it cannot stick inside a horizontally scrolling wrapper.
 - **`Rendered` has no `summary`;** the listing takes it from `library.describe()`.
-- **Listing:** the "Recently changed" strip appears only above ten documents; in a small folder it repeated most of the page.
-- **`/` with a single root** redirects to that root's listing.
-- **Code cells** already use `<details>`, collapsed above 30 lines (works without script). Open cells show only a small "Hide" control in the corner.
-- **No JavaScript at all yet.** `boot.js`, `reader.js`, the contents button, position restore, the wrap toggle and clamp are milestone 2. `data-theme` and `data-size` are fixed in the page shell until then. The top bar is sticky and does not auto-hide.
+- **Display math is a `<span class="math display">`**, not a `div`: the markdown parser puts it inside a `<p>`.
+- **Listing:** the "Recently changed" strip appears only above ten documents. Every markdown row names its file, and a folder's README comes first.
+- **`/` is a start page, not the listing.** It is served cacheable for a year and decides in the browser: if `/_ping` answers it goes on to `/_home` (the listing, or the list of roots), otherwise it says "Lectern is not running" and retries every two seconds. `/_ping` reports the asset hash so a stale cached start page refreshes itself.
+
+Reading (milestone 2 and the feedback):
+
+- **Four themes, not two:** Solarized light and dark, black-and-white light and dark, plus "Follow system". Stored as `family` and `mode`; `data-theme` is `solarized-light`, `solarized-dark`, `plain-light` or `plain-dark`. This replaces decision 9's pair; the e-ink theme of milestone 3 can start from `plain-light` and add the no-animation and pager rules.
+- **Text size is a pixel stepper** (14 to 26, default 19), not S/M/L/XL; everything else is in rem and follows.
+- **Column width** is a setting (narrow, medium, wide prose measure). Code, outputs and tables get 8rem more than the prose in total, which is what 88 columns of code need, instead of running to 62rem.
+- **Cell numbers:** each code cell shows `[n]`, its execution count, or `#n`, its position, when it was never run. In the left margin where the screen has one, otherwise beside Show/Hide.
+- **Top bar** hides while scrolling down and returns on scrolling up.
+- **Link guard:** every in-app link first asks `/_ping`; with the server gone the page stays and shows the "not running" screen instead of navigating into a failed load, which is what sent the Home Screen app into a reload loop.
+- **Stream clamp and wrap toggle are added by `reader.js`**, not rendered by the server: above 60 lines the first 30 show; "No wrap" appears when a line is over 100 characters. Without script all lines show.
+- **Contents** is a side sheet listing h1 to h3, with the current section marked when it opens.
+- **Not done from the design's milestone 2 list:** nothing. Extra: `scripts/check_reader.py` covers more than position restore.
 - **Math** is wrapped in `.math` elements and shown as TeX source in the code font until KaTeX arrives in milestone 5.
-- `render/document.py` is new (the shared `Rendered` and post-processing); `config.py`, `lab.py`, `agent.py`, `build.py`, `scripts/` and golden fixtures do not exist yet.
-- Ruff's formatter is told to skip `*.md`, because it rewrites the Python snippets in this file.
+- `render/document.py`, `templates/shell.html.j2`, `scripts/_local.py` and `scripts/check_reader.py` are new; `config.py`, `lab.py`, `agent.py`, `build.py` do not exist yet.
+- Ruff is told to skip `*.md` and `tests/fixtures`: its formatter rewrites Python snippets in this file and the code cells of fixture notebooks.
 
 Things to know when continuing:
 
+- **Cold start with the server stopped is only half solved.** Chromium shows the cached start page; WebKit under Playwright does not use the cache for it and shows its own error. Whether Safari on the iPad behaves like that is untested. The reliable fix is a service worker, which needs HTTPS (see `docs/tasks/plan.md`).
 - agent-memory-eval has a `private/` directory with a markdown file in it. `lectern serve` in that repo lists and serves it to the network like any other document. Nothing in the design excludes it; an ignore list is a possible addition.
 - Many of the notebooks' relative links point at `docs/…` and `papers/…` files that are not in the repo, so they lead to the 404 page.
-- Headless Chrome gives a blank screenshot for a URL with a `#fragment`; capture a tall window and crop.
+- A Pygments token class is `.n`; do not reuse short class names inside `.highlight`.
+- Headless Chrome gives a blank screenshot for a URL with a `#fragment`; use `scripts/shots.py` instead.
 
 The original spoken brief is at `/Users/anton/tmp-spoken-plans/jupylab/tablet-use.txt`.
 

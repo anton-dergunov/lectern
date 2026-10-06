@@ -1,5 +1,5 @@
-/* Colour tokens per theme, and the text size steps. reader.css and pygments.css use only
-   these variables, so a theme is this block and nothing else.
+/* Colour tokens per theme. reader.css and pygments.css use only these variables, so a theme
+   is one block here and one entry in boot.js (its bar colour).
 
    Solarized: base03 #002b36  base02 #073642  base01 #586e75  base00 #657b83
               base0  #839496  base1  #93a1a1  base2  #eee8d5  base3  #fdf6e3
@@ -7,7 +7,8 @@
               violet #6c71c4  blue   #268bd2  cyan   #2aa198  green   #859900 */
 
 :root,
-[data-theme="solarized"] {
+[data-theme="solarized-light"] {
+  color-scheme: light;
   --bg: #fdf6e3;
   --bg-alt: #eee8d5;
   /* base01, not the canonical base00: 4.99:1 on base3 against 4.13:1. */
@@ -20,6 +21,7 @@
   --accent: #cb4b16;
   --code-fg: #586e75;
   --err: #dc322f;
+  --shade: rgb(7 54 66 / 0.25);
 
   --syn-kw: #859900;
   --syn-str: #2aa198;
@@ -37,8 +39,93 @@
   --ansi-cyan: #2aa198;
 }
 
-:root { --size: 19px; }
-[data-size="s"] { --size: 17px; }
-[data-size="m"] { --size: 19px; }
-[data-size="l"] { --size: 21px; }
-[data-size="xl"] { --size: 23px; }
+[data-theme="solarized-dark"] {
+  color-scheme: dark;
+  --bg: #002b36;
+  --bg-alt: #073642;
+  /* base1, the mirror of the choice above: 5.7:1 on base03 against 4.75:1 for base0. */
+  --fg: #93a1a1;
+  --fg-strong: #eee8d5;
+  --fg-muted: #657b83;
+  --rule: #0f4756;
+  --link: #268bd2;
+  --accent: #cb4b16;
+  --code-fg: #93a1a1;
+  --err: #dc322f;
+  --shade: rgb(0 0 0 / 0.45);
+
+  --syn-kw: #859900;
+  --syn-str: #2aa198;
+  --syn-num: #2aa198;
+  --syn-com: #657b83;
+  --syn-fn: #268bd2;
+  --syn-builtin: #d33682;
+  --syn-op: #839496;
+}
+
+[data-theme="plain-light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-alt: #f3f3f1;
+  --fg: #222222;
+  --fg-strong: #000000;
+  --fg-muted: #717171;
+  --rule: #dddddd;
+  --link: #0b57d0;
+  --accent: #a4380f;
+  --code-fg: #222222;
+  --err: #c0261d;
+  --shade: rgb(0 0 0 / 0.25);
+
+  --syn-kw: #a31f34;
+  --syn-str: #0f5a8a;
+  --syn-num: #0f5a8a;
+  --syn-com: #717171;
+  --syn-fn: #6b3fb3;
+  --syn-builtin: #8a4a00;
+  --syn-op: #222222;
+
+  --ansi-red: #c0261d;
+  --ansi-green: #2b7a0b;
+  --ansi-yellow: #8a6100;
+  --ansi-blue: #0b57d0;
+  --ansi-magenta: #a3248f;
+  --ansi-cyan: #0b7285;
+}
+
+[data-theme="plain-dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-alt: #171717;
+  --fg: #dcdcdc;
+  --fg-strong: #ffffff;
+  --fg-muted: #8c8c8c;
+  --rule: #2e2e2e;
+  --link: #7ab7ff;
+  --accent: #ffa657;
+  --code-fg: #dcdcdc;
+  --err: #ff7b72;
+  --shade: rgb(0 0 0 / 0.6);
+
+  --syn-kw: #ff7b72;
+  --syn-str: #a5d6ff;
+  --syn-num: #79c0ff;
+  --syn-com: #8c8c8c;
+  --syn-fn: #d2a8ff;
+  --syn-builtin: #ffa657;
+  --syn-op: #dcdcdc;
+
+  --ansi-red: #ff7b72;
+  --ansi-green: #7ee787;
+  --ansi-yellow: #e3b341;
+  --ansi-blue: #7ab7ff;
+  --ansi-magenta: #d2a8ff;
+  --ansi-cyan: #76e3ea;
+}
+
+/* The text size is set by boot.js as a pixel value; everything else is in rem and follows.
+   The column width is the prose measure; code, outputs and tables get a little more. */
+:root { --size: 19px; --measure: 36rem; }
+[data-width="n"] { --measure: 31rem; }
+[data-width="m"] { --measure: 36rem; }
+[data-width="w"] { --measure: 42rem; }
