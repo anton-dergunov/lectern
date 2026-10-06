@@ -76,6 +76,14 @@ Launch polish (milestone 6):
 - **`--qr`** prints the code before the addresses, so the addresses are what stays on screen.
 - **Follow changes** is a reload, not a swap of `<main>`: every two seconds, while the page is visible, a `HEAD` compares the ETag, and a change saves the reading position and reloads. Simpler than re-running every enhancement on swapped content, and the place is kept either way. Off by default; the setting is absent in the e-ink theme and on built sites.
 
+Found by Anton reading the fixtures on the iPad and the Boox (version 0.2.1):
+
+- **Raw HTML in markdown was being broken by nbconvert.** With `embed_images` on, its renderer parses each raw-HTML block and inline tag by itself and writes it back, which closes whatever was open: `<details>` lost its content and `<b>` its text. `ReaderMarkdownRenderer._html_embed_images` now only rewrites the `src` of `<img>` tags and leaves the rest of the HTML untouched.
+- **The fixture image was a truncated 2×2 PNG** written by hand; viewers decoded it differently and it showed as a dot at its own size. `make_fixtures.py` now generates a valid 320×200 PNG.
+- **The bar names the file** after the folders, and it is the part that shortens when the bar is narrow.
+- **Typeset display math hides its scrollbar.** Anton saw a grey strip under the last formula on the Boox, most likely the bar Android draws when a formula is a pixel wider than the column. Not confirmed on the device.
+- An output with both a script and HTML form (the `javascript` fixture) shows its HTML where VS Code runs the script; that difference is intended.
+
 Things to know when continuing:
 
 - **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.

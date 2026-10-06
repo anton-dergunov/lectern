@@ -46,6 +46,8 @@ def test_notebook_page(server):
 
     assert response.status == 200
     assert "<title>Sample notebook</title>" in body
+    # The bar says which file this is, after the folders that lead to it.
+    assert '<span class="here" aria-current="page" title="sample.ipynb">sample.ipynb</span>' in body
     assert "In [" not in body
     # Scripts are the reader's own files; nothing inline, nothing from the notebook.
     assert "<script>" not in body and body.count("<script") == body.count('<script src="/_static/')

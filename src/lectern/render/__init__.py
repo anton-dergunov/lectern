@@ -5,7 +5,7 @@ from pathlib import Path
 from .document import Rendered
 
 # Part of every cache key: raise it when a change here alters the HTML for an unchanged file.
-RENDER_VERSION = 4
+RENDER_VERSION = 5
 
 __all__ = ["RENDER_VERSION", "Rendered", "render_document"]
 

@@ -229,6 +229,7 @@ def build(src: Path, out: Path, options: SiteOptions, clean: bool = False) -> Bu
             default_family=options.theme,
             title=rendered.title,
             crumbs=[Crumb(options.title, f"{up}index.html")],
+            here=rel.name,
             back=f"{up}index.html",
             fragment=fragment,
             toc=rendered.toc,

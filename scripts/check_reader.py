@@ -188,6 +188,23 @@ def run(engine_name: str, playwright) -> bool:
         opened = page.locator("pre.error").is_visible()
         results.append(check("a long traceback starts folded and opens", folded and opened))
 
+        # ---- Raw HTML, pictures, and which file this is ----
+        page.goto(server.url("raw-html-in-markdown.ipynb"))
+        hidden = page.get_by_text("Hidden text.")
+        folded = not hidden.is_visible()
+        page.get_by_text("More").click()
+        results.append(check("raw <details> folds and opens", folded and hidden.is_visible()))
+        weight = page.locator(".cell.md b").evaluate("e => getComputedStyle(e).fontWeight")
+        results.append(check("raw <b> is bold", int(weight) >= 600, weight))
+        here = page.locator(".crumbs .here")
+        named = here.inner_text() == "raw-html-in-markdown.ipynb"
+        results.append(
+            check("the bar names the file", named and here.is_visible(), here.inner_text())
+        )
+        page.goto(server.url("plotly-with-picture.ipynb"))
+        size = page.locator("figure.img img").evaluate("e => [e.naturalWidth, e.clientWidth]")
+        results.append(check("a saved picture is shown at its size", size == [320, 320], size))
+
         # ---- One column ----
         page.goto(long_read)
         widths = page.evaluate(

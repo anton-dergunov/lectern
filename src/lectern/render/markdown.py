@@ -1,6 +1,7 @@
 """Markdown to HTML, for notebook cells and for standalone `.md` files."""
 
 import re
+from html import unescape as html_unescape
 from pathlib import Path
 
 from nbconvert.filters.markdown_mistune import IPythonRenderer, MarkdownWithMath
@@ -8,6 +9,10 @@ from nbconvert.filters.markdown_mistune import IPythonRenderer, MarkdownWithMath
 from .document import Rendered, finish
 
 _FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
+_IMG_SRC = re.compile(
+    r"""(?P<before><img\b[^>]*?\bsrc\s*=\s*(?P<quote>["']))(?P<src>.*?)(?P=quote)""",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 class ReaderMarkdownRenderer(IPythonRenderer):
@@ -16,6 +21,22 @@ class ReaderMarkdownRenderer(IPythonRenderer):
     That makes "does this page have math" an exact question, and lets the math renderer
     touch only these elements, never a `$` that a cell happened to print.
     """
+
+    def _html_embed_images(self, html: str) -> str:
+        """Embed the images of a piece of raw HTML without rewriting the HTML around them.
+
+        The inherited version parses each piece by itself and writes it back out. Raw HTML
+        reaches the renderer in pieces (an opening `<details>` and its closing tag are
+        separate blocks, with the markdown between them; so are `<b>` and `</b>`), and a
+        piece parsed alone gets its open tags closed: the `<details>` ends up empty and
+        its content outside it.
+        """
+
+        def embed(match: re.Match) -> str:
+            data = self._src_to_base64(html_unescape(match["src"]))
+            return match[0] if data is None else f"{match['before']}{data}{match['quote']}"
+
+        return _IMG_SRC.sub(embed, html)
 
     def inline_math(self, body: str) -> str:
         return f'<span class="math inline">{self.escape_html(body)}</span>'

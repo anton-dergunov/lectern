@@ -280,6 +280,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             "page.html.j2",
             title=hit.rendered.title,
             crumbs=crumbs,
+            here=target.name,
             back=crumbs[-1].href,
             fragment=hit.rendered.fragment,
             toc=hit.rendered.toc,

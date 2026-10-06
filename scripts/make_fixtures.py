@@ -8,17 +8,37 @@ expected HTML with `uv run pytest --update-golden` and read the diff.
 
 import base64
 import json
+import struct
+import zlib
 from pathlib import Path
 
 from nbformat import v4
 
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 
-# A 2x2 red PNG.
-PNG = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP8z8DAwMDAxAAGAA0GAQHt"
-    "cnjRAAAAAElFTkSuQmCC"
-)
+
+def png(width: int, height: int) -> str:
+    """A valid PNG, base64-encoded: a blue panel with a darker frame, large enough to be
+    seen at its own size and plain enough that every viewer must draw it the same."""
+    frame, panel = bytes((7, 54, 66)), bytes((38, 139, 210))
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)
+        for x in range(width):
+            edge = x < 4 or y < 4 or x >= width - 4 or y >= height - 4
+            rows += frame if edge else panel
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    image = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+    image += chunk(b"IDAT", zlib.compress(bytes(rows), 9)) + chunk(b"IEND", b"")
+    return base64.b64encode(image).decode()
+
+
+PNG = png(320, 200)
 SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">'
     '<script>alert(1)</script><rect width="40" height="20" fill="#268bd2"/></svg>'
@@ -107,7 +127,7 @@ CASES: dict[str, list] = {
             [
                 display(
                     {"image/png": PNG, "text/plain": "<Figure>"},
-                    **{"image/png": {"width": 320, "height": 240}},
+                    **{"image/png": {"width": 320, "height": 200}},
                 )
             ],
         )
@@ -214,7 +234,7 @@ CASES: dict[str, list] = {
     ],
     "attachment": [
         md(
-            "# Attachment\n\n![a red square](attachment:square.png)\n",
+            "# Attachment\n\n![a blue panel](attachment:square.png)\n",
             attachments={"square.png": {"image/png": PNG}},
         )
     ],

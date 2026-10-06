@@ -91,3 +91,25 @@ def test_markdown_front_matter_is_not_shown(tmp_path: Path):
 
     assert rendered.title == "Shown"
     assert "hidden" not in rendered.fragment
+
+
+def test_raw_html_in_markdown_keeps_its_structure(tmp_path: Path):
+    (tmp_path / "dot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    path = write_notebook(
+        tmp_path / "raw.ipynb",
+        [
+            v4.new_markdown_cell(
+                "<details><summary>More</summary>\n\nHidden *text*.\n\n</details>\n\n"
+                'Some <b>bold</b> and <img alt="a dot" src="dot.png"> inline.\n\n'
+                '<p><img src="https://example.com/far.png"></p>\n'
+            )
+        ],
+    )
+    fragment = render_document(path).fragment
+
+    # The content stays inside the element that folds it away, and tags keep their text.
+    assert "<details><summary>More</summary>\n<p>Hidden <em>text</em>.</p>\n</details>" in fragment
+    assert "<b>bold</b>" in fragment
+    # Local images are still embedded; ones elsewhere are left as they are.
+    assert '<img alt="a dot" src="data:image/png;base64,' in fragment
+    assert 'src="https://example.com/far.png"' in fragment

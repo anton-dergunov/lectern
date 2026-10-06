@@ -40,9 +40,12 @@
 {% endif %}
   <nav class="crumbs" aria-label="Location">
 {% for crumb in crumbs %}
-    <a href="{{ crumb.href }}">{{ crumb.name }}</a>{% if not loop.last %}<span class="sep" aria-hidden="true">/</span>{% endif %}
+    <a href="{{ crumb.href }}">{{ crumb.name }}</a>{% if not loop.last or here %}<span class="sep" aria-hidden="true">/</span>{% endif %}
 
 {% endfor %}
+{% if here %}
+    <span class="here" aria-current="page" title="{{ here }}">{{ here }}</span>
+{% endif %}
   </nav>
 {% if toc and toc | length > 1 %}
   <button class="bar-button" type="button" data-open="toc" aria-label="Contents">
