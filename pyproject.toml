@@ -1,0 +1,45 @@
+[project]
+name = "lectern"
+version = "0.1.0"
+description = "Read Jupyter notebooks and markdown on a tablet, from a small read-only local server"
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    # Not imported: it provides the `ipython3` Pygments lexer that notebooks ask for, which
+    # highlights magics and shell lines instead of marking them as errors.
+    "ipython>=8",
+    "jinja2>=3.1",
+    "mistune>=3.0,<4",
+    # The reader template extends nbconvert's classic template by block name, and the
+    # markdown renderer subclasses its mistune renderer; a new major may rename either.
+    "nbconvert>=7.16,<8",
+    "nbformat>=5.10",
+    "pygments>=2.18",
+]
+
+[project.scripts]
+lectern = "lectern.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.16.10"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lectern"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# The formatter would otherwise rewrite the Python snippets inside the design notes.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

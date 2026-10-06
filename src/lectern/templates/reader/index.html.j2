@@ -1,0 +1,95 @@
+{#-
+  The reader's notebook body. classic/base.html.j2 wraps cells, inputs and outputs in the
+  classic notebook's divs, so the structural blocks below call super.super() to reach the
+  bare structure in base/null.j2, and every leaf block is written out here.
+-#}
+{%- extends 'classic/base.html.j2' -%}
+
+{%- block header -%}{%- endblock header -%}
+{%- block footer -%}{%- endblock footer -%}
+{%- block in_prompt -%}{%- endblock in_prompt -%}
+{%- block output_prompt -%}{%- endblock output_prompt -%}
+{#- Nothing in the reader runs scripts. -#}
+{%- block data_javascript -%}{%- endblock data_javascript -%}
+{%- block data_widget_view -%}{%- endblock data_widget_view -%}
+
+{%- macro figure(output, cell, mime, src) -%}
+{%- set width = output | get_metadata('width', mime) -%}
+{%- set alt = (output | get_metadata('alt', mime)) or (cell | get_metadata('alt')) or '' -%}
+<figure class="img"><img src="{{ src }}"{% if width is not none %} width="{{ width | escape_html }}"{% endif %} alt="{{ alt | escape_html }}"></figure>
+{%- endmacro -%}
+
+{% block markdowncell scoped %}
+<section class="cell md" id="c-{{ cell.id }}">
+{{ cell.source | markdown2html | strip_files_prefix }}
+</section>
+{% endblock markdowncell %}
+
+{% block codecell scoped %}
+{%- if cell.source.strip() or cell.outputs %}
+<section class="cell code" id="c-{{ cell.id }}">
+{{ super.super() }}
+</section>
+{%- endif %}
+{% endblock codecell %}
+
+{% block input_group %}
+{%- if cell.source.strip() %}
+{%- set n = cell.source.strip().count('\n') + 1 %}
+<details class="src"{% if n <= 30 %} open{% endif %}>
+<summary><span class="label">Code · {{ n }} line{{ '' if n == 1 else 's' }}</span></summary>
+{{ cell.source | highlight_code(metadata=cell.metadata) }}
+</details>
+{%- endif %}
+{% endblock input_group %}
+
+{% block output_group %}
+<div class="out">
+{{ super.super() }}
+</div>
+{% endblock output_group %}
+
+{% block output %}
+{{ super.super() }}
+{% endblock output %}
+
+{% block stream_stdout -%}
+<pre class="stream wrap">{{ output.text | ansi2html | stream_lines }}</pre>
+{%- endblock stream_stdout %}
+
+{% block stream_stderr -%}
+<pre class="stream wrap stderr">{{ output.text | ansi2html | stream_lines }}</pre>
+{%- endblock stream_stderr %}
+
+{% block data_text scoped -%}
+<pre class="stream wrap result">{{ output.data['text/plain'] | ansi2html | stream_lines }}</pre>
+{%- endblock data_text %}
+
+{% block error -%}
+<pre class="error">{{ super.super() }}</pre>
+{%- endblock error %}
+
+{% block data_html scoped -%}
+<div class="html">{{ output.data['text/html'] | clean_table_html }}</div>
+{%- endblock data_html %}
+
+{% block data_markdown scoped -%}
+<div class="md">{{ output.data['text/markdown'] | markdown2html }}</div>
+{%- endblock data_markdown %}
+
+{% block data_latex scoped -%}
+<div class="math display">{{ output.data['text/latex'] | escape_html }}</div>
+{%- endblock data_latex %}
+
+{% block data_png scoped -%}
+{{ figure(output, cell, 'image/png', 'data:image/png;base64,' ~ (output.data['image/png'] | escape_html)) }}
+{%- endblock data_png %}
+
+{% block data_jpg scoped -%}
+{{ figure(output, cell, 'image/jpeg', 'data:image/jpeg;base64,' ~ (output.data['image/jpeg'] | escape_html)) }}
+{%- endblock data_jpg %}
+
+{#- Through <img>, so a script inside the SVG cannot run. -#}
+{% block data_svg scoped -%}
+{{ figure(output, cell, 'image/svg+xml', 'data:image/svg+xml;base64,' ~ (output.data['image/svg+xml'] | text_base64)) }}
+{%- endblock data_svg %}

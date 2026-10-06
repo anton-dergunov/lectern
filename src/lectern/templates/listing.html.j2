@@ -1,0 +1,55 @@
+{% extends "page.html.j2" %}
+
+{% macro row(entry, show_path=false) %}
+<li><a class="row" href="{{ entry.href }}">
+  <span class="row-title">{{ entry.title }}</span>
+  <span class="meta">{% if show_path %}{{ entry.path }} · {% endif %}{{ entry.modified }}</span>
+</a></li>
+{% endmacro %}
+
+{% block main %}
+<main class="listing">
+<h1>{{ heading }}</h1>
+{% if roots is defined %}
+<ul class="rows">
+{% for root in roots %}
+<li><a class="row" href="{{ root.href }}"><span class="row-title">{{ root.name }}</span></a></li>
+{% endfor %}
+</ul>
+{% elif not listing.groups %}
+<p class="empty">No notebooks or markdown files here.</p>
+{% else %}
+{% if listing.recent %}
+<section class="group">
+<h2>Recently changed</h2>
+<ul class="rows">
+{% for entry in listing.recent %}{{ row(entry, show_path=true) }}{% endfor %}
+</ul>
+</section>
+{% endif %}
+{% for group in listing.groups %}
+<section class="group">
+{% if group.name %}
+<h2><a href="{{ group.href }}">{{ group.name }}</a></h2>
+{% elif listing.recent or listing.groups | length > 1 %}
+<h2>This folder</h2>
+{% endif %}
+{% for entry in group.notebooks %}
+<a class="card" href="{{ entry.href }}">
+  <span class="card-title">{{ entry.title }}</span>
+{% if entry.summary %}
+  <span class="card-summary">{{ entry.summary }}</span>
+{% endif %}
+  <span class="meta">{{ entry.name }} · {{ entry.minutes }} min · {{ entry.modified }}</span>
+</a>
+{% endfor %}
+{% if group.pages %}
+<ul class="rows">
+{% for entry in group.pages %}{{ row(entry) }}{% endfor %}
+</ul>
+{% endif %}
+</section>
+{% endfor %}
+{% endif %}
+</main>
+{% endblock %}

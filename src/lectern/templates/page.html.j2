@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="solarized" data-size="m">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lectern">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="{{ theme_color }}">
+<meta name="format-detection" content="telephone=no">
+{% block head %}{% endblock %}
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ static }}/icons/apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="{{ static }}/icons/icon.svg">
+<link rel="stylesheet" href="{{ static }}/themes.css">
+<link rel="stylesheet" href="{{ static }}/reader.css">
+<link rel="stylesheet" href="{{ static }}/pygments.css">
+</head>
+<body>
+<header class="bar">
+{% if back %}
+  <a class="back" href="{{ back }}" aria-label="Back to {{ crumbs[-1].name if crumbs else 'the listing' }}">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+{% endif %}
+  <nav class="crumbs" aria-label="Location">
+{% for crumb in crumbs %}
+    <a href="{{ crumb.href }}">{{ crumb.name }}</a>{% if not loop.last %}<span class="sep" aria-hidden="true">/</span>{% endif %}
+
+{% endfor %}
+  </nav>
+</header>
+{% block main %}
+{% if stale %}
+<p class="banner">This file could not be read just now, probably because it is being saved. Showing the last version that could.</p>
+{% endif %}
+<main class="doc" data-path="{{ path }}" data-mtime="{{ mtime }}">
+{{ fragment | safe }}
+</main>
+{% endblock %}
+</body>
+</html>

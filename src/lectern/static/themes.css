@@ -1,0 +1,44 @@
+/* Colour tokens per theme, and the text size steps. reader.css and pygments.css use only
+   these variables, so a theme is this block and nothing else.
+
+   Solarized: base03 #002b36  base02 #073642  base01 #586e75  base00 #657b83
+              base0  #839496  base1  #93a1a1  base2  #eee8d5  base3  #fdf6e3
+              yellow #b58900  orange #cb4b16  red    #dc322f  magenta #d33682
+              violet #6c71c4  blue   #268bd2  cyan   #2aa198  green   #859900 */
+
+:root,
+[data-theme="solarized"] {
+  --bg: #fdf6e3;
+  --bg-alt: #eee8d5;
+  /* base01, not the canonical base00: 4.99:1 on base3 against 4.13:1. */
+  --fg: #586e75;
+  --fg-strong: #073642;
+  --fg-muted: #93a1a1;
+  --rule: #d9d2c5;
+  /* 3.41:1 on base3, so links are always underlined as well. */
+  --link: #268bd2;
+  --accent: #cb4b16;
+  --code-fg: #586e75;
+  --err: #dc322f;
+
+  --syn-kw: #859900;
+  --syn-str: #2aa198;
+  --syn-num: #2aa198;
+  --syn-com: #93a1a1;
+  --syn-fn: #268bd2;
+  --syn-builtin: #d33682;
+  --syn-op: #657b83;
+
+  --ansi-red: #dc322f;
+  --ansi-green: #859900;
+  --ansi-yellow: #b58900;
+  --ansi-blue: #268bd2;
+  --ansi-magenta: #d33682;
+  --ansi-cyan: #2aa198;
+}
+
+:root { --size: 19px; }
+[data-size="s"] { --size: 17px; }
+[data-size="m"] { --size: 19px; }
+[data-size="l"] { --size: 21px; }
+[data-size="xl"] { --size: 23px; }

@@ -1,0 +1,17 @@
+{% extends "page.html.j2" %}
+
+{% block head %}
+{% if retry %}
+<meta http-equiv="refresh" content="{{ retry }}">
+{% endif %}
+{% endblock %}
+
+{% block main %}
+<main class="listing">
+<h1>{{ heading }}</h1>
+<p class="empty">{{ message }}</p>
+{% if detail %}
+<pre class="error">{{ detail }}</pre>
+{% endif %}
+</main>
+{% endblock %}

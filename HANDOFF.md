@@ -2,11 +2,31 @@
 
 ## State on 2026-10-06
 
-Design only. Nothing is built: this folder holds just this file, with no scaffold and no git repository yet, and agent-memory-eval and ml-explorations are untouched.
+**Milestone 1 is built** and verified on the Mac: `uv run pytest` passes, `lectern serve` in agent-memory-eval serves the listing, all four notebooks and the markdown files, and headless Chrome screenshots at 820×1180 were checked by eye. **Not yet done from milestone 1:** opening the `.local` address on the iPad in Safari and Add to Home Screen. agent-memory-eval and ml-explorations are untouched.
 
-**Next step:** implement milestone 1 (section 13).
+**Next step:** the iPad check, then milestone 2 (section 13).
 
-**About prototypes:** no prototype files exist on disk. A planning subagent ran an in-memory nbconvert prototype (custom template extending `classic/base.html.j2`) and reported that it worked and its measurements, but did not return the code. The sketches in section 12 are written from that description and from nbconvert's known structure; they have **not been run** and should be checked against the installed files named there.
+Where the build differs from the design below (the design text is left as written):
+
+- **Template:** `classic/base.html.j2` wraps cells, inputs and outputs in classic-notebook `div`s, so the reader template reaches past it with `super.super()` for `codecell`, `output_group`, `output` and `error`, and writes every leaf block itself. Classic's `conf.json` also enables `CSSHTMLHeaderPreprocessor`; the reader's `conf.json` disables it.
+- **Output priority:** the widget and javascript MIME types are removed from `display_data_priority`, so such an output falls back to its HTML, image or text form instead of rendering as nothing.
+- **IPython is a dependency**, only for the `ipython3` Pygments lexer; without it nbconvert warns and highlights magics as errors.
+- **Host check:** any IP literal is accepted (a rebinding attack needs a hostname), plus `localhost` and `<LocalHostName>.local`. No list of LAN IPs to keep current.
+- **Tables:** every table is wrapped and classified in one pass after rendering (`render/document.py`), so markdown pipe tables get the same treatment as pandas ones. Numeric cells get `class="num"`. The sticky header row is not done: it cannot stick inside a horizontally scrolling wrapper.
+- **`Rendered` has no `summary`;** the listing takes it from `library.describe()`.
+- **Listing:** the "Recently changed" strip appears only above ten documents; in a small folder it repeated most of the page.
+- **`/` with a single root** redirects to that root's listing.
+- **Code cells** already use `<details>`, collapsed above 30 lines (works without script). Open cells show only a small "Hide" control in the corner.
+- **No JavaScript at all yet.** `boot.js`, `reader.js`, the contents button, position restore, the wrap toggle and clamp are milestone 2. `data-theme` and `data-size` are fixed in the page shell until then. The top bar is sticky and does not auto-hide.
+- **Math** is wrapped in `.math` elements and shown as TeX source in the code font until KaTeX arrives in milestone 5.
+- `render/document.py` is new (the shared `Rendered` and post-processing); `config.py`, `lab.py`, `agent.py`, `build.py`, `scripts/` and golden fixtures do not exist yet.
+- Ruff's formatter is told to skip `*.md`, because it rewrites the Python snippets in this file.
+
+Things to know when continuing:
+
+- agent-memory-eval has a `private/` directory with a markdown file in it. `lectern serve` in that repo lists and serves it to the network like any other document. Nothing in the design excludes it; an ignore list is a possible addition.
+- Many of the notebooks' relative links point at `docs/…` and `papers/…` files that are not in the repo, so they lead to the 404 page.
+- Headless Chrome gives a blank screenshot for a URL with a `#fragment`; capture a tall window and crop.
 
 The original spoken brief is at `/Users/anton/tmp-spoken-plans/jupylab/tablet-use.txt`.
 

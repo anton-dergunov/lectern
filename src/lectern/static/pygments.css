@@ -1,0 +1,36 @@
+/* Pygments token classes mapped onto the theme's syntax variables, so switching theme
+   recolours code. Covers highlighted cells and fenced code in markdown. */
+
+.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn, .highlight .kp,
+.highlight .kr, .highlight .kt, .highlight .ow { color: var(--syn-kw); }
+
+.highlight .s, .highlight .sa, .highlight .sb, .highlight .sc, .highlight .dl,
+.highlight .sd, .highlight .s2, .highlight .sh, .highlight .s1, .highlight .sx,
+.highlight .sr, .highlight .ss { color: var(--syn-str); }
+.highlight .se, .highlight .si { color: var(--accent); }
+
+.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh, .highlight .mi,
+.highlight .mo, .highlight .il { color: var(--syn-num); }
+
+.highlight .c, .highlight .ch, .highlight .cm, .highlight .cpf, .highlight .c1,
+.highlight .cs, .highlight .cp { color: var(--syn-com); font-style: italic; }
+
+.highlight .nf, .highlight .fm, .highlight .nc, .highlight .nd, .highlight .nt { color: var(--syn-fn); }
+.highlight .nb, .highlight .bp, .highlight .ne { color: var(--syn-builtin); }
+.highlight .o, .highlight .p { color: var(--syn-op); }
+
+.highlight .gd { color: var(--err); }
+.highlight .gi { color: var(--syn-kw); }
+.highlight .gh, .highlight .gu { color: var(--fg-strong); font-weight: 600; }
+
+/* Colours a cell printed with ANSI escapes. */
+.ansi-bold { font-weight: 600; }
+.ansi-underline { text-decoration: underline; }
+.ansi-black-fg, .ansi-black-intense-fg { color: var(--fg-strong); }
+.ansi-white-fg, .ansi-white-intense-fg { color: var(--fg-muted); }
+.ansi-red-fg, .ansi-red-intense-fg { color: var(--ansi-red); }
+.ansi-green-fg, .ansi-green-intense-fg { color: var(--ansi-green); }
+.ansi-yellow-fg, .ansi-yellow-intense-fg { color: var(--ansi-yellow); }
+.ansi-blue-fg, .ansi-blue-intense-fg { color: var(--ansi-blue); }
+.ansi-magenta-fg, .ansi-magenta-intense-fg { color: var(--ansi-magenta); }
+.ansi-cyan-fg, .ansi-cyan-intense-fg { color: var(--ansi-cyan); }
