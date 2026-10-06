@@ -123,9 +123,44 @@
   --ansi-cyan: #76e3ea;
 }
 
+/* Black on white with nothing in between, for e-ink: greys dither, colours vanish, and
+   every repaint is slow and leaves ghosts. Syntax is told apart by weight and slant
+   (pygments.css), and reader.css turns off everything that moves. */
+[data-theme="eink"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-alt: #ffffff;
+  --fg: #000000;
+  --fg-strong: #000000;
+  --fg-muted: #000000;
+  --rule: #000000;
+  --link: #000000;
+  --accent: #000000;
+  --code-fg: #000000;
+  --err: #000000;
+  --shade: transparent;
+
+  --syn-kw: #000000;
+  --syn-str: #000000;
+  --syn-num: #000000;
+  --syn-com: #000000;
+  --syn-fn: #000000;
+  --syn-builtin: #000000;
+  --syn-op: #000000;
+
+  --ansi-red: #000000;
+  --ansi-green: #000000;
+  --ansi-yellow: #000000;
+  --ansi-blue: #000000;
+  --ansi-magenta: #000000;
+  --ansi-cyan: #000000;
+}
+
 /* The text size is set by boot.js as a pixel value; everything else is in rem and follows.
-   The column width is the prose measure; code, outputs and tables get a little more. */
+   One column width for prose, code, outputs and tables alike. */
 :root { --size: 19px; --measure: 36rem; }
 [data-width="n"] { --measure: 31rem; }
 [data-width="m"] { --measure: 36rem; }
 [data-width="w"] { --measure: 42rem; }
+[data-width="x"] { --measure: 54rem; }
+[data-width="f"] { --measure: 100vw; }

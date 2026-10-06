@@ -11,7 +11,8 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
 - long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
-- reading settings saved per device: text size, column width, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
+- reading settings saved per device: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
+- an e-ink theme, chosen by itself on e-ink readers: black on white, nothing animated, and pages turned with buttons, a tap on either edge of the screen, or the page keys instead of scrolling;
 - a top bar that gets out of the way while you read down and comes back when you scroll up;
 - a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars.
 

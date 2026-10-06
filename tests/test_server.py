@@ -184,3 +184,19 @@ def test_several_roots_get_a_front_page(root: Path, tmp_path: Path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_dropped_connection_prints_nothing(server, capsys):
+    import socket
+    import struct
+    import time
+
+    connection = socket.create_connection(("127.0.0.1", server.server_address[1]))
+    connection.sendall(b"GET /proj/ HT")
+    # Closing with a zero linger sends a reset, as a device does when it drops off Wi-Fi.
+    connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    connection.close()
+    time.sleep(0.3)
+
+    assert request(server, "/_ping")[0].status == 200
+    assert capsys.readouterr().err == ""

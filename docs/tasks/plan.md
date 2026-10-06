@@ -19,8 +19,9 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 ## 2. Postponed from the first round of feedback
 
 - **Collapse and expand sections by heading**, working together with the contents list. Cells are rendered one after another with no section wrapper, so this means grouping cells under their heading at render time.
-- **Column width as a free setting.** There are three steps now (narrow, medium, wide). A slider, or separate control over how much wider code and tables run than the prose, if the steps turn out too coarse.
+- **Column width as a free setting.** There are five steps now (narrow, medium, wide, wider, full), and everything shares one column. A slider if the steps turn out too coarse.
 - **Default text size on the desktop.** It reads slightly large there and slightly small on the tablet at the same 19 px. The setting is per device, so this may need nothing; otherwise a different default above a certain screen width.
 - **A more file-oriented listing.** First impression was that it should show more of the files; after using it, it seemed fine. Left as it is, apart from naming the file on every row.
 - **"Continue reading" on the listing**, filled from the saved reading positions (HANDOFF section 9).
-- **Opening the Home Screen app while lectern is stopped.** In Chromium the start page is shown from the browser's cache and says that lectern is not running. WebKit, in testing, asks the network anyway and shows its own failure. A page that opens with no server needs a service worker, which browsers only allow over HTTPS; that makes this part of the Tailscale decision at the e-ink milestone (HANDOFF decision 12).
+- **Page turns that end on a whole line.** In the e-ink theme a turn moves by a fixed distance, so the last line on the screen can be cut through by the footer; the next page repeats it. Snapping each turn to a line of text would remove that, at the cost of measuring the layout on every turn.
+- **Fonts for e-ink.** Nothing is bundled; the theme uses whatever serif and monospace the tablet has. Decide after seeing it on the device.

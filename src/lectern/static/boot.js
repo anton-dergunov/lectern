@@ -11,22 +11,32 @@
     "solarized-dark": "#002b36",
     "plain-light": "#ffffff",
     "plain-dark": "#000000",
+    eink: "#ffffff",
   };
+  var FAMILIES = ["solarized", "plain", "eink"];
+  var WIDTHS = ["n", "m", "w", "x", "f"];
+  // Reading devices whose browsers say who they are; the rest are caught by the media query.
+  var EINK_DEVICE = /\b(BOOX|Onyx|Kindle|Kobo|PocketBook|reMarkable|Bigme|Meebook|Likebook|Boyue)\b/i;
   var SIZE = { min: 14, max: 26 };
   var dark = window.matchMedia("(prefers-color-scheme: dark)");
 
   function read() {
-    var saved = {};
+    var saved = null;
     try {
-      saved = JSON.parse(localStorage.getItem(KEY)) || {};
+      saved = JSON.parse(localStorage.getItem(KEY));
     } catch (e) {}
+    if (!saved || typeof saved !== "object") {
+      // First visit: an e-ink screen starts in the theme made for it.
+      var eink = EINK_DEVICE.test(navigator.userAgent) || window.matchMedia("(monochrome)").matches;
+      saved = eink ? { family: "eink" } : {};
+    }
     var prefs = {};
     for (var name in DEFAULTS) {
       prefs[name] = typeof saved[name] === typeof DEFAULTS[name] ? saved[name] : DEFAULTS[name];
     }
-    if (!BAR_COLORS[prefs.family + "-light"]) prefs.family = DEFAULTS.family;
+    if (FAMILIES.indexOf(prefs.family) < 0) prefs.family = DEFAULTS.family;
     if (["light", "dark", "system"].indexOf(prefs.mode) < 0) prefs.mode = DEFAULTS.mode;
-    if (["n", "m", "w"].indexOf(prefs.width) < 0) prefs.width = DEFAULTS.width;
+    if (WIDTHS.indexOf(prefs.width) < 0) prefs.width = DEFAULTS.width;
     prefs.size = Math.min(SIZE.max, Math.max(SIZE.min, Math.round(prefs.size)));
     return prefs;
   }
@@ -34,7 +44,8 @@
   function apply(prefs) {
     var root = document.documentElement;
     var mode = prefs.mode === "system" ? (dark.matches ? "dark" : "light") : prefs.mode;
-    var theme = prefs.family + "-" + mode;
+    // E-ink has one look; light and dark do not apply to it.
+    var theme = prefs.family === "eink" ? "eink" : prefs.family + "-" + mode;
     root.dataset.theme = theme;
     root.dataset.width = prefs.width;
     root.style.setProperty("--size", prefs.size + "px");

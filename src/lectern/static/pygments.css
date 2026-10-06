@@ -23,6 +23,18 @@
 .highlight .gi { color: var(--syn-kw); }
 .highlight .gh, .highlight .gu { color: var(--fg-strong); font-weight: 600; }
 
+/* With no colours to tell tokens apart, weight and slant do it: keywords bold, comments
+   and docstrings slanted, the name being defined underlined. */
+[data-theme="eink"] .highlight .k, [data-theme="eink"] .highlight .kc,
+[data-theme="eink"] .highlight .kd, [data-theme="eink"] .highlight .kn,
+[data-theme="eink"] .highlight .kr, [data-theme="eink"] .highlight .kt,
+[data-theme="eink"] .highlight .ow { font-weight: 800; }
+[data-theme="eink"] .highlight .sd { font-style: italic; }
+[data-theme="eink"] .highlight .nf, [data-theme="eink"] .highlight .nc {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 /* Colours a cell printed with ANSI escapes. */
 .ansi-bold { font-weight: 600; }
 .ansi-underline { text-decoration: underline; }

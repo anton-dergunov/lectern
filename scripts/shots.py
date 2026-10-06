@@ -20,7 +20,7 @@ from playwright.sync_api import sync_playwright
 
 from lectern import library
 
-THEMES = ["solarized-light", "solarized-dark", "plain-light", "plain-dark"]
+THEMES = ["solarized-light", "solarized-dark", "plain-light", "plain-dark", "eink"]
 ENGINES = ["chromium", "webkit"]
 DEFAULT_PAGES = 4
 
@@ -48,8 +48,8 @@ def main() -> None:
         for engine in args.engine or ENGINES:
             browser = getattr(playwright, engine).launch()
             for theme in themes:
-                family, mode = theme.split("-")
-                prefs = {"family": family, "mode": mode, "size": args.size}
+                family, _, mode = theme.partition("-")
+                prefs = {"family": family, "mode": mode or "light", "size": args.size}
                 context = browser.new_context(viewport={"width": width, "height": height})
                 context.add_init_script(
                     f"localStorage.setItem('lectern:prefs', {json.dumps(json.dumps(prefs))})"

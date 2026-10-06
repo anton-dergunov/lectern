@@ -102,8 +102,13 @@
   var lastY = window.scrollY;
   var holdBar = 0;
 
+  function eink() {
+    return root.dataset.theme === "eink";
+  }
+
   function showBar(show) {
-    root.classList.toggle("bar-away", !show);
+    // On e-ink the bar stays put: sliding it in and out is a repaint each time.
+    root.classList.toggle("bar-away", !show && !eink());
   }
 
   window.addEventListener(
@@ -174,11 +179,23 @@
   // ---- Settings ----
 
   var settings = document.getElementById("settings");
+  // Column widths in rem, as in themes.css.
+  var WIDTHS = { n: 31, m: 36, w: 42, x: 54, f: Infinity };
 
   function showSettings() {
     settings.querySelectorAll("[data-pref]").forEach(function (button) {
       var on = String(prefs[button.dataset.pref]) === button.dataset.value;
       button.setAttribute("aria-pressed", on);
+    });
+    settings.querySelector("[data-modes]").hidden = prefs.family === "eink";
+    // A width that would look the same as the one before it on this screen is left out.
+    var room = window.innerWidth - 32;
+    var rem = prefs.size;
+    var previous = 0;
+    settings.querySelectorAll("[data-pref='width']").forEach(function (button) {
+      var same = previous >= room && button.dataset.value !== prefs.width;
+      button.hidden = same;
+      previous = WIDTHS[button.dataset.value] * rem;
     });
     settings.querySelector("[data-size-value]").textContent = prefs.size + " px";
     settings.querySelector("[data-size-step='-1']").disabled = prefs.size <= window.lectern.size.min;
@@ -203,14 +220,80 @@
           window.lectern.set(button.dataset.pref, value);
           if (button.dataset.pref === "hideCode") applyHideCode();
         });
+        showBar(true);
+        updatePager();
       } else if (button.dataset.sizeStep) {
         keepingPlace(function () {
           window.lectern.set("size", prefs.size + Number(button.dataset.sizeStep));
         });
+        updatePager();
       }
       showSettings();
     });
     showSettings();
+  }
+
+  // ---- Turning pages (e-ink) ----
+  // Scrolling smears on e-ink, so the page moves a screenful at a time, at once: by the
+  // buttons at the bottom, a tap on the left or right edge, or the page keys.
+
+  var pager = document.querySelector(".pager");
+
+  function pageStep() {
+    var twoLines = 2 * 1.6 * parseFloat(getComputedStyle(root).fontSize);
+    var covered = bar.offsetHeight + (pager ? pager.offsetHeight : 0);
+    return Math.max(120, window.innerHeight - covered - twoLines);
+  }
+
+  function lastScroll() {
+    return Math.max(0, root.scrollHeight - window.innerHeight);
+  }
+
+  function turn(direction) {
+    window.scrollTo({ top: window.scrollY + direction * pageStep(), behavior: "instant" });
+  }
+
+  function updatePager() {
+    if (!pager || !eink()) return;
+    var step = pageStep();
+    var last = lastScroll();
+    var y = Math.min(last, Math.max(0, window.scrollY));
+    var total = Math.ceil(last / step) + 1;
+    var page = y >= last - 1 ? total : Math.min(total, Math.floor(y / step + 0.01) + 1);
+    var label = page + " / " + total;
+    var output = pager.querySelector("[data-page]");
+    if (output.textContent !== label) output.textContent = label;
+    pager.querySelector("[data-turn='-1']").disabled = y <= 0;
+    pager.querySelector("[data-turn='1']").disabled = y >= last - 1;
+  }
+
+  if (pager) {
+    pager.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-turn]");
+      if (button) turn(Number(button.dataset.turn));
+    });
+    window.addEventListener("scroll", updatePager, { passive: true });
+    window.addEventListener("resize", updatePager);
+    window.addEventListener("load", updatePager);
+
+    var EDGE = 0.3;
+    document.addEventListener("click", function (event) {
+      if (!eink() || event.defaultPrevented) return;
+      // Anything that does something of its own keeps its tap.
+      if (event.target.closest("a, button, summary, input, dialog, .bar, .pager, .table-wrap")) return;
+      if (String(window.getSelection())) return;
+      var x = event.clientX / window.innerWidth;
+      if (x < EDGE) turn(-1);
+      else if (x > 1 - EDGE) turn(1);
+    });
+
+    var KEYS = { PageDown: 1, ArrowRight: 1, " ": 1, PageUp: -1, ArrowLeft: -1 };
+    document.addEventListener("keydown", function (event) {
+      if (!eink() || !KEYS[event.key] || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      turn(KEYS[event.key]);
+    });
   }
 
   // ---- Code cells ----
@@ -224,6 +307,7 @@
   }
 
   if (prefs.hideCode) applyHideCode();
+  updatePager();
 
   // ---- Printed output: long blocks start short, wide ones can stop wrapping ----
 

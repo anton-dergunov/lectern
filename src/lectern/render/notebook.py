@@ -69,13 +69,17 @@ _lock = threading.Lock()
 def render_notebook(path: Path) -> Rendered:
     global _exporter
     nb = nbformat.read(path, as_version=4)
+    code_cells = 0
     for index, cell in enumerate(nb.cells):
         # Notebooks older than nbformat 4.5 have no cell ids; the template anchors on them.
         if not cell.get("id"):
             cell["id"] = f"n{index}"
-        # What Jupyter shows beside the cell, or its position when it was never run.
-        count = cell.get("execution_count")
-        cell.metadata["lectern_label"] = f"[{count}]" if count else f"#{index + 1}"
+        if cell.cell_type == "code":
+            # What Jupyter shows beside the cell; for one that was never run, which code
+            # cell it is, counting code cells only, as a run from the top would number it.
+            code_cells += 1
+            count = cell.get("execution_count")
+            cell.metadata["lectern_label"] = f"[{count}]" if count else f"#{code_cells}"
     # One exporter for the process: building it is slow, and it is not thread-safe.
     with _lock:
         if _exporter is None:

@@ -2,9 +2,9 @@
 
 ## State on 2026-10-06
 
-**Milestones 1 and 2 are built.** Milestone 1 was tried on the iPad and the desktop by Anton; his spoken feedback is at `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt` and shaped milestone 2. Milestone 2 is verified on the Mac only: `uv run pytest` (golden fragments included) and `uv run --group shots python scripts/check_reader.py`, which drives Chromium and WebKit. **Not yet done:** trying milestone 2 on the iPad. agent-memory-eval and ml-explorations are untouched.
+**Milestones 1, 2 and 3 are built.** Anton tried milestones 1 and 2 on the iPad and the desktop; his spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt` and `feedback2.txt`, and both rounds are folded in. Milestone 3 (e-ink) is verified on the Mac only, in Chromium and WebKit through `scripts/check_reader.py` and screenshots at a tablet-sized viewport. **No e-ink device has seen it yet**, and three parts of milestone 3 wait for that session: the full-screen route (decision 12), whether to bundle fonts, and tuning by eye. agent-memory-eval and ml-explorations are untouched.
 
-**Next step:** the iPad check of milestone 2, then milestone 3 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
+**Next step:** a reading session on the e-ink tablet (and the Android phone), then milestone 4 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
 
 Where the build differs from the design below (the design text is left as written):
 
@@ -22,10 +22,11 @@ Rendering and server:
 
 Reading (milestone 2 and the feedback):
 
-- **Four themes, not two:** Solarized light and dark, black-and-white light and dark, plus "Follow system". Stored as `family` and `mode`; `data-theme` is `solarized-light`, `solarized-dark`, `plain-light` or `plain-dark`. This replaces decision 9's pair; the e-ink theme of milestone 3 can start from `plain-light` and add the no-animation and pager rules.
+- **Five themes, not two:** Solarized light and dark, black-and-white light and dark, plus "Follow system", and E-ink. Stored as `family` (`solarized`, `plain`, `eink`) and `mode`; `data-theme` is `solarized-light`, `solarized-dark`, `plain-light`, `plain-dark` or `eink`. This replaces decision 9's pair.
+- **E-ink (milestone 3):** pure black on white with borders instead of tints, syntax told apart by weight, slant and underline, body weight 500, no transitions or animations, the top bar fixed in place, and code wrapped instead of scrolled sideways. A footer turns pages (Previous, "3 / 29", Next); so do taps on the left and right 30% of the screen and PageUp, PageDown, the arrow keys and space. A page turn is the screen height less the bar, the footer and two lines, applied instantly. First visit picks the theme from the user agent (BOOX, Onyx, Kindle, Kobo, PocketBook and others) or `(monochrome)`. Follow-changes does not exist yet, so there is nothing to hide for it.
 - **Text size is a pixel stepper** (14 to 26, default 19), not S/M/L/XL; everything else is in rem and follows.
-- **Column width** is a setting (narrow, medium, wide prose measure). Code, outputs and tables get 8rem more than the prose in total, which is what 88 columns of code need, instead of running to 62rem.
-- **Cell numbers:** each code cell shows `[n]`, its execution count, or `#n`, its position, when it was never run. In the left margin where the screen has one, otherwise beside Show/Hide.
+- **One column width for everything.** Prose, code, outputs and tables share the column; the design's wider code (to fit 88 columns unscrolled) looked unbalanced to Anton, as it does not in VS Code. The width is a setting with five steps: narrow 31rem, medium 36rem (default), wide 42rem, wider 54rem, full. At medium, code fits about 78 characters and longer lines scroll inside their block. Steps that would look the same as the one before on the current screen are not offered.
+- **Cell numbers:** each code cell shows `[n]`, its execution count, or `#n` when it was never run, where n counts code cells only (the first code cell is 1 whatever precedes it, as a run from the top would number it). Markdown cells are not numbered. In the left margin where the screen has one, otherwise beside Show/Hide.
 - **Top bar** hides while scrolling down and returns on scrolling up.
 - **Link guard:** every in-app link first asks `/_ping`; with the server gone the page stays and shows the "not running" screen instead of navigating into a failed load, which is what sent the Home Screen app into a reload loop.
 - **Stream clamp and wrap toggle are added by `reader.js`**, not rendered by the server: above 60 lines the first 30 show; "No wrap" appears when a line is over 100 characters. Without script all lines show.
@@ -37,7 +38,9 @@ Reading (milestone 2 and the feedback):
 
 Things to know when continuing:
 
-- **Cold start with the server stopped is only half solved.** Chromium shows the cached start page; WebKit under Playwright does not use the cache for it and shows its own error. Whether Safari on the iPad behaves like that is untested. The reliable fix is a service worker, which needs HTTPS (see `docs/tasks/plan.md`).
+- **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.
+- **Waiting for the e-ink device:** its model, Android version and browser; whether `.local` resolves on it; whether Add to Home Screen gives full screen over plain http or the Tailscale HTTPS route is needed (decision 12); whether its system serif and mono are good enough or fonts should be bundled; whether taps and its page buttons reach the pager; whether a page turn should leave more or less than two lines of overlap.
+- A dropped connection used to print a traceback over the launch summary; `ReaderServer.handle_error` now ignores connection errors unless `--verbose`.
 - agent-memory-eval has a `private/` directory with a markdown file in it. `lectern serve` in that repo lists and serves it to the network like any other document. Nothing in the design excludes it; an ignore list is a possible addition.
 - Many of the notebooks' relative links point at `docs/…` and `papers/…` files that are not in the repo, so they lead to the 404 page.
 - A Pygments token class is `.n`; do not reuse short class names inside `.highlight`.

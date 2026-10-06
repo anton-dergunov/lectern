@@ -39,6 +39,13 @@ HTML = "text/html; charset=utf-8"
 class ReaderServer(ThreadingHTTPServer):
     daemon_threads = True
 
+    def handle_error(self, request, client_address) -> None:
+        # A device that drops its connection (a tab closed, Wi-Fi asleep) is not news;
+        # the default prints a traceback for it over the launch summary.
+        if isinstance(sys.exception(), ConnectionError | TimeoutError) and not self.verbose:
+            return
+        super().handle_error(request, client_address)
+
     def __init__(
         self,
         address: tuple[str, int],

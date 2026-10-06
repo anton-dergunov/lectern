@@ -1,20 +1,20 @@
 /* Layout and typography. Colours come from themes.css.
-   Sized for an 820px portrait viewport: 19px body in a 36rem column, 14px code that fits
-   88 columns unscrolled. Code, outputs and tables get 4rem more than the prose on each
-   side where the screen has it, which is what 88 columns need. */
+   Sized for an 820px portrait viewport: 19px body in a 36rem column, with code, outputs
+   and tables in that same column. 14px code fits about 78 characters there; longer lines
+   scroll sideways inside their block. */
 
 :root {
   --font-body: Charter, "Iowan Old Style", ui-serif, "Noto Serif", Georgia, serif;
   --font-code: ui-monospace, "SF Mono", Menlo, "Roboto Mono", "Noto Sans Mono", monospace;
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --leading: 1.6;
-  --wide: calc(var(--measure) + 8rem);
   --code-size: 0.737rem;   /* 14px at the default size */
   --stream-size: 0.71rem;  /* 13.5px */
   --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html {
   font-size: var(--size);
@@ -94,7 +94,7 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
 /* ---- Document ---- */
 
 .doc {
-  max-width: var(--wide);
+  max-width: calc(var(--measure) + 2 * var(--gutter));
   margin: 0 auto;
   padding: 1.6rem var(--gutter) calc(5rem + env(safe-area-inset-bottom));
 }
@@ -104,20 +104,6 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
 .cell { margin: 0; }
 .cell.code { position: relative; margin: 1.3rem 0; }
 
-/* Prose keeps to the reading measure; tables and code blocks inside it may run wider. */
-.cell.md > *,
-.out > .md > * {
-  max-width: var(--measure);
-  margin-left: auto;
-  margin-right: auto;
-}
-.cell.md > .table-wrap,
-.cell.md > .highlight,
-.cell.md > pre {
-  width: fit-content;
-  min-width: min(100%, var(--measure));
-  max-width: 100%;
-}
 
 p, ul, ol, dl, blockquote { margin-top: 0; margin-bottom: 0.9em; }
 p { text-wrap: pretty; hanging-punctuation: first; }
@@ -214,11 +200,11 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 
 /* The cell's number, to find it again in the notebook: in the margin where the screen has
    one, otherwise beside Show/Hide. The clamp flips between the two positions at the width
-   where 3rem of margin appears. */
+   where 3rem of margin appears beside the column. */
 .cell-n {
   position: absolute;
   top: 0.62rem;
-  left: clamp(-2.9rem, (3rem - 16px - (100vw - var(--wide)) / 2) * 9999, 100% - 6.3rem);
+  left: clamp(-2.9rem, (3rem - (100vw - var(--measure)) / 2) * 9999, 100% - 6.3rem);
   z-index: 2;
   width: 2.5rem;
   text-align: right;
@@ -306,7 +292,7 @@ td.num { text-align: right; }
 /* ---- Listings and error pages ---- */
 
 .listing {
-  max-width: 40rem;
+  max-width: calc(var(--measure) + 2 * var(--gutter));
   margin: 0 auto;
   padding: 1.6rem var(--gutter) calc(5rem + env(safe-area-inset-bottom));
 }
@@ -477,6 +463,75 @@ dialog.sheet::backdrop { background: var(--shade); }
 @media (prefers-reduced-motion: reduce) {
   .bar { transition: none; }
 }
+
+/* ---- Turning pages: the footer of the e-ink theme ---- */
+
+.pager { display: none; }
+
+/* ---- E-ink ----
+   Nothing moves, nothing is grey, nothing scrolls sideways if it can wrap instead. */
+
+[data-theme="eink"] *,
+[data-theme="eink"] *::before,
+[data-theme="eink"] *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+[data-theme="eink"] body { font-weight: 500; }
+[data-theme="eink"] .bar { border-bottom-width: 2px; }
+[data-theme="eink"] .highlight,
+[data-theme="eink"] .cell.md > pre,
+[data-theme="eink"] .src:not([open]) > summary,
+[data-theme="eink"] :not(pre) > code { border: 1px solid var(--rule); }
+[data-theme="eink"] :not(pre) > code { padding: 0 0.25em; }
+/* The corner control sits over the block's border, so it carries the border on. */
+[data-theme="eink"] .src[open] > summary { border: 1px solid var(--rule); }
+/* Panning a code block is a string of repaints; a wrapped line is one. */
+[data-theme="eink"] .highlight pre,
+[data-theme="eink"] .cell.md > pre { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
+[data-theme="eink"] .stream,
+[data-theme="eink"] .error { font-weight: 500; }
+[data-theme="eink"] .out,
+[data-theme="eink"] .stream.stderr,
+[data-theme="eink"] .error { border-left-width: 3px; }
+[data-theme="eink"] .error { border-left-style: double; border-left-width: 6px; }
+[data-theme="eink"] blockquote { border-left-color: var(--rule); }
+[data-theme="eink"] dialog.sheet { border-left: 2px solid var(--rule); }
+[data-theme="eink"] .choice,
+[data-theme="eink"] .stepper { border-width: 1px; }
+[data-theme="eink"] .choice button[aria-pressed="true"] { background: #000; color: #fff; }
+[data-theme="eink"] .toc a[aria-current] { border-left-width: 4px; }
+[data-theme="eink"] .stepper button:disabled,
+[data-theme="eink"] .pager button:disabled { text-decoration: line-through; }
+
+[data-theme="eink"] .pager {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 2px solid var(--rule);
+  background: var(--bg);
+  font: 600 0.76rem/1 var(--font-ui);
+}
+.pager button, .pager output {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+}
+.pager output { display: grid; place-items: center; font-variant-numeric: tabular-nums lining-nums; }
+.pager button + output, .pager output + button { border-left: 1px solid var(--rule); }
+[data-theme="eink"] .doc,
+[data-theme="eink"] .listing { padding-bottom: calc(5rem + 48px + env(safe-area-inset-bottom)); }
 
 @media (max-width: 480px) {
   h1 { font-size: 1.6rem; }

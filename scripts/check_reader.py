@@ -4,7 +4,8 @@
 
 Runs against the test fixtures on a local port, in Chromium and WebKit. Checks the top
 bar hiding, the reading position surviving a reload and a text-size change, settings,
-the contents list, long output, and what happens when the server stops.
+the contents list, long output, the e-ink theme's page turning, and what happens when the
+server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
 """
@@ -140,6 +141,110 @@ def run(engine_name: str, playwright) -> bool:
         page.locator("details.src summary").click()
         position = name_token.evaluate("e => getComputedStyle(e).position")
         results.append(check("code tokens are laid out normally", position == "static", position))
+
+        # ---- One column ----
+        page.goto(long_read)
+        widths = page.evaluate(
+            """() => ['.cell.md p', '.cell.code .highlight', '.cell.code .out'].map(
+                 s => Math.round(document.querySelector(s).getBoundingClientRect().right))"""
+        )
+        results.append(
+            check("prose, code and output end at the same edge", len(set(widths)) == 1, widths)
+        )
+        page.get_by_role("button", name="Reading settings").click()
+        offered = page.locator("[data-pref=width]:visible").all_inner_texts()
+        # The text is at 22 px here, so Medium already fills this screen: the steps beyond
+        # it would change nothing and are left out.
+        results.append(
+            check(
+                "widths that change nothing are not offered",
+                offered == ["Narrow", "Medium"],
+                offered,
+            )
+        )
+
+        # ---- E-ink ----
+        page.get_by_role("button", name="E-ink").click()
+        results.append(check("e-ink theme", theme(page) == "eink", theme(page)))
+        results.append(
+            check(
+                "light and dark do not apply to it", not page.locator("[data-modes]").is_visible()
+            )
+        )
+        page.locator("#settings").get_by_role("button", name="Done").click()
+        page.evaluate("window.scrollTo(0, 0)")
+        settle(page)
+        label = page.locator(".pager output")
+        first = label.inner_text()
+        results.append(
+            check("pager counts pages", first.startswith("1 / ") and int(first[4:]) > 3, first)
+        )
+        page.get_by_role("button", name="Next").click()
+        page.wait_for_timeout(150)
+        moved = page.evaluate("window.scrollY")
+        screen = page.evaluate("window.innerHeight")
+        results.append(
+            check("next turns most of a screen, at once", 0.6 * screen < moved < screen, moved)
+        )
+        results.append(
+            check("and counts it", label.inner_text().startswith("2 / "), label.inner_text())
+        )
+        page.mouse.click(790, 500)
+        results.append(
+            check("a tap on the right edge turns on", page.evaluate("window.scrollY") > moved * 1.9)
+        )
+        page.mouse.click(30, 500)
+        back = page.evaluate("window.scrollY")
+        results.append(check("a tap on the left edge turns back", abs(back - moved) < 2, back))
+        page.mouse.click(400, 500)
+        results.append(
+            check("a tap in the middle does nothing", page.evaluate("window.scrollY") == back)
+        )
+        page.keyboard.press("PageDown")
+        results.append(
+            check("the page key turns on", page.evaluate("window.scrollY") > back + 0.6 * screen)
+        )
+        results.append(check("the bar stays put", not bar_hidden(page)))
+        still = page.evaluate(
+            """() => [...document.querySelectorAll('.bar, .sheet, .src summary, a')].every(e => {
+                 const style = getComputedStyle(e);
+                 return style.transitionDuration.split(', ').every(d => d === '0s')
+                     && style.animationName === 'none';
+               })"""
+        )
+        results.append(check("nothing is animated", still))
+        page.goto(server.url("markdown-table-and-fence.ipynb"))
+        wraps = page.locator(".highlight pre").first.evaluate("e => getComputedStyle(e).whiteSpace")
+        results.append(check("code wraps instead of scrolling", wraps == "pre-wrap", wraps))
+        page.get_by_role("button", name="Reading settings").click()
+        page.get_by_role("button", name="Solarized").click()
+        page.locator("#settings").get_by_role("button", name="Done").click()
+        results.append(check("pager gone outside e-ink", not page.locator(".pager").is_visible()))
+
+        reader = browser.new_context(
+            viewport={"width": 702, "height": 936},
+            user_agent="Mozilla/5.0 (Linux; Android 12; NoteAir3C BOOX) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+        )
+        first_visit = reader.new_page()
+        first_visit.goto(long_read)
+        detected = theme(first_visit)
+        results.append(
+            check("an e-ink device starts in the e-ink theme", detected == "eink", detected)
+        )
+        reader.close()
+
+        wide = browser.new_context(viewport={"width": 1440, "height": 900})
+        desktop = wide.new_page()
+        desktop.goto(long_read)
+        desktop.get_by_role("button", name="Reading settings").click()
+        offered = desktop.locator("[data-pref=width]:visible").all_inner_texts()
+        results.append(check("a desktop is offered all five widths", len(offered) == 5, offered))
+        desktop.get_by_role("button", name="Full").click()
+        column = desktop.locator(".cell.md p").first.evaluate(
+            "e => e.getBoundingClientRect().width"
+        )
+        results.append(check("full uses the whole window", column > 1380, column))
+        wide.close()
 
         # ---- The server stops while a page is open ----
         page.goto(long_read)
