@@ -40,6 +40,20 @@ CONTENT_TYPES = {
 }
 HTML = "text/html; charset=utf-8"
 
+# What the "not running" page loads, for the service worker to keep with it.
+OFFLINE_ASSETS = [
+    "themes.css",
+    "reader.css",
+    "pygments.css",
+    "boot.js",
+    "reader.js",
+    "icons/icon.svg",
+    "fonts/charis-sil-400-normal.woff2",
+    "fonts/charis-sil-700-normal.woff2",
+    "fonts/inter-400-normal.woff2",
+    "fonts/inter-600-normal.woff2",
+]
+
 
 class ReaderServer(ThreadingHTTPServer):
     daemon_threads = True
@@ -158,6 +172,10 @@ class ReaderHandler(BaseHTTPRequestHandler):
             self._static(path)
         elif path == "/":
             self._shell()
+        elif path == "/_offline":
+            self._shell(home="")
+        elif path == "/_sw.js":
+            self._service_worker()
         elif path == "/_home":
             self._home()
         else:
@@ -186,15 +204,28 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _shell(self) -> None:
+    def _shell(self, home: str = "/_home") -> None:
         """The start page, cacheable for a year so it opens even with the server stopped.
 
         It decides in the browser between going on to `/_home` and saying that lectern is
-        not running, and refreshes its own cached copy when the assets have changed.
+        not running, and refreshes its own cached copy when the assets have changed. With
+        `home` empty it is the page the service worker keeps to show in place of any page
+        that could not be loaded.
         """
-        html = render_page("shell.html.j2", title="Lectern", assets=asset_hash())
-        caching = {"Cache-Control": "public, max-age=31536000, immutable"}
-        self._send(HTTPStatus.OK, html.encode(), HTML, caching)
+        html = render_page("shell.html.j2", title="Lectern", assets=asset_hash(), home=home)
+        caching = "public, max-age=31536000, immutable" if home else "no-cache"
+        self._send(HTTPStatus.OK, html.encode(), HTML, {"Cache-Control": caching})
+
+    def _service_worker(self) -> None:
+        """`static/sw.js`, told which version it is and what the "not running" page needs."""
+        needed = [f"{static_url()}/{name}" for name in OFFLINE_ASSETS]
+        script = (STATIC / "sw.js").read_text(encoding="utf-8")
+        script = script.replace("__VERSION__", asset_hash())
+        script = script.replace("__ASSETS__", json.dumps(needed))
+        # Always asked for afresh: this is how a browser learns that there is a new one.
+        self._send(
+            HTTPStatus.OK, script.encode(), CONTENT_TYPES[".js"], {"Cache-Control": "no-cache"}
+        )
 
     def _home(self) -> None:
         roots = self.server.roots
@@ -346,6 +377,8 @@ class ReaderHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Content-Security-Policy", CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
+        # How the service worker tells lectern's own error pages from a proxy's.
+        self.send_header("X-Lectern", __version__)
         self.send_header("Referrer-Policy", "no-referrer")
         for name, value in (headers or {}).items():
             self.send_header(name, value)

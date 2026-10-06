@@ -84,6 +84,15 @@ Found by Anton reading the fixtures on the iPad and the Boox (version 0.2.1):
 - **Typeset display math hides its scrollbar.** Anton saw a grey strip under the last formula on the Boox, most likely the bar Android draws when a formula is a pixel wider than the column. Not confirmed on the device.
 - An output with both a script and HTML form (the `javascript` fixture) shows its HTML where VS Code runs the script; that difference is intended.
 
+After Anton set up Tailscale and read on the Boox (version 0.2.2):
+
+- **Anton uses the Tailscale route** (`tailscale serve --bg --https=443 http://127.0.0.1:8642`), on the Boox at least. With lectern stopped, Tailscale's proxy answers 502 and Chrome showed its own "This page isn't working".
+- **A service worker now covers that.** `/_sw.js` is `static/sw.js` with the asset hash and the list of files the "not running" page needs filled in. Browsers run it only on HTTPS or localhost. Navigations go to the network first; no answer, or a 5xx without the `X-Lectern` header that every lectern response now carries, gets the cached `/_offline` page, which is the start page's template with no `home`: it waits for `/_ping` and then loads the address it was shown for. Nothing else is cached or intercepted except `/_static/` as a fallback. On plain `http://….local` there is no service worker and the long-cached start page keeps doing the cold-start job.
+- **The "not running" screen** has the icon, a "Try again" button, and retries at once when the page becomes visible again (background timers are throttled, which is the likely reason it sometimes did not recover by itself).
+- **E-ink pager:** a "Top" button; a button that has nowhere to go is blank instead of struck through, which read as an error. Scrollbars of streams, tables and code are hidden in the e-ink theme (they showed as a grey strip that stays on the screen). Anton confirmed the strip under math is gone.
+- **Kept as it is, after Anton asked:** the top bar stays fixed in the e-ink theme. He does sometimes scroll by finger there, but hiding and showing the bar is a repaint each time and would change the height a page turn has to cover; it costs 44px on a 13-inch screen. And the e-ink theme stays black on white for text, ANSI colours included, although the Boox has colour: pictures and SVG keep their colours, which is where colour carries information.
+- **Fixtures have distinct pictures now:** `png` is a five-colour bar chart, `plotly-with-picture` carries real plotly data and a matching three-bar picture, `attachment` keeps the blue panel. Anton had taken three identical placeholder panels for a rendering bug.
+
 Things to know when continuing:
 
 - **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.

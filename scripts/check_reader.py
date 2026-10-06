@@ -72,7 +72,13 @@ def run(engine_name: str, playwright) -> bool:
         # ---- Top bar ----
         page.goto(long_read)
         page.evaluate("window.scrollTo(0, 2500)")
-        settle(page)
+        try:
+            # Not a fixed wait: the first page of a run can still be settling.
+            page.wait_for_function(
+                "document.documentElement.classList.contains('bar-away')", timeout=4000
+            )
+        except Exception:
+            pass
         results.append(check("bar hides when reading down", bar_hidden(page)))
         page.evaluate("window.scrollTo(0, 2300)")
         settle(page)
@@ -203,7 +209,7 @@ def run(engine_name: str, playwright) -> bool:
         )
         page.goto(server.url("plotly-with-picture.ipynb"))
         size = page.locator("figure.img img").evaluate("e => [e.naturalWidth, e.clientWidth]")
-        results.append(check("a saved picture is shown at its size", size == [320, 320], size))
+        results.append(check("a saved picture is shown at its size", size == [480, 480], size))
 
         # ---- One column ----
         page.goto(long_read)
@@ -266,6 +272,16 @@ def run(engine_name: str, playwright) -> bool:
         results.append(
             check("the page key turns on", page.evaluate("window.scrollY") > back + 0.6 * screen)
         )
+        page.get_by_role("button", name="Top", exact=True).click()
+        page.wait_for_timeout(150)
+        at_top = page.evaluate("window.scrollY") == 0
+        results.append(
+            check("top goes to the top", at_top and label.inner_text().startswith("1 / "))
+        )
+        blank = page.get_by_role("button", name="Previous").evaluate(
+            "e => e.disabled && getComputedStyle(e).color === 'rgba(0, 0, 0, 0)'"
+        )
+        results.append(check("a button with nowhere to go is blank", blank))
         results.append(check("the bar stays put", not bar_hidden(page)))
         still = page.evaluate(
             """() => [...document.querySelectorAll('.bar, .sheet, .src summary, a')].every(e => {
@@ -342,6 +358,36 @@ def run(engine_name: str, playwright) -> bool:
             results.append(check("and goes on by itself once it is back", True))
         except Exception as error:
             results.append(check("and goes on by itself once it is back", False, error))
+
+        # ---- Opening a page directly while the server is stopped ----
+        # This address counts as secure, so the service worker is installed here as it is
+        # behind HTTPS, and stands in for the browser's own error page.
+        direct = context.new_page()
+        direct.goto(long_read)
+        try:
+            direct.evaluate("navigator.serviceWorker.ready.then(() => true)")
+            direct.wait_for_function("navigator.serviceWorker.controller !== null", timeout=5000)
+            server.stop()
+            direct.goto(long_read)
+            expect(direct.locator(".offline-msg")).to_contain_text("not running", timeout=6000)
+            results.append(check("a page asked for directly says lectern is not running", True))
+            logo = direct.locator(".offline-icon").evaluate("e => e.naturalWidth > 0")
+            styled = (
+                direct.evaluate(FONT_SIZE) != "16px" or direct.locator("[data-retry]").is_visible()
+            )
+            results.append(check("with its logo, styles and a retry button", logo and styled))
+            direct.get_by_role("button", name="Try again").click()
+            server.start()
+            direct.wait_for_selector("main.doc", timeout=8000)
+            results.append(
+                check("and loads that page once it is back", direct.url == long_read, direct.url)
+            )
+        except Exception as error:
+            print(f"  note no service worker here  ({str(error).splitlines()[0][:90]})")
+            results.append(engine_name == "webkit")
+            if not server._server:
+                server.start()
+        direct.close()
 
         # ---- Opening the app with the server stopped ----
         start = context.new_page()

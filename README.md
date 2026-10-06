@@ -57,7 +57,7 @@ lectern  serving agent-memory-eval (4 notebooks, 4 markdown files)
 
 Open the first address on the tablet. The second is for devices that cannot resolve `.local` names; it changes when the router hands the laptop a different address.
 
-If lectern is stopped while a page is open, following a link shows "Lectern is not running" instead of a browser error, and the page carries on by itself once `lectern serve` is running again.
+If lectern is stopped while a page is open, following a link shows "Lectern is not running" instead of a browser error. The page carries on by itself once `lectern serve` is running again; **Try again** asks at once.
 
 `lectern serve PATH…` serves other directories, each under its own name. `--port` changes the port (default 8642), `--host` the address to listen on, `--qr` also shows the address as a QR code (needs `qrencode`), and `--verbose` prints each request.
 
@@ -111,6 +111,10 @@ extra_hosts = ["your-mac.your-tailnet.ts.net"]
 ```
 
 and open `https://your-mac.your-tailnet.ts.net/` on any device signed in to the same Tailscale account. The same address works away from home.
+
+`tailscale serve --bg` is remembered: it comes back by itself after a restart of the Mac or of Tailscale, until `tailscale serve reset` removes it. It only forwards, so `lectern serve` (or the login agent) still has to be running.
+
+Over HTTPS lectern also stays in charge when it is stopped: opening or reloading any page shows "Lectern is not running", with a Try again button, in place of the browser's own error page, and the page loads by itself once lectern is back.
 
 ### Full screen on an iPad
 

@@ -576,9 +576,23 @@ dialog.sheet::backdrop { background: var(--shade); }
   text-align: center;
 }
 .offline[hidden] { display: none; }
+.offline-icon { width: 72px; height: 72px; margin-bottom: 0.8rem; border-radius: 16px; }
 .offline h1 { margin: 0 0 1.2rem; font-size: 1.9rem; }
 .offline-msg { max-width: 24rem; font-size: 0.9rem; }
 .offline-msg p { margin-bottom: 0.6em; }
+.offline-msg button {
+  min-height: 44px;
+  margin-top: 0.6rem;
+  padding: 0 1.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  color: var(--fg-strong);
+  font: 600 0.8rem/1 var(--font-ui);
+  cursor: pointer;
+}
+.offline-msg button:disabled { color: var(--fg-muted); }
+[data-theme="eink"] .offline-icon { border: 1px solid var(--rule); }
 
 @media (prefers-reduced-motion: reduce) {
   .bar { transition: none; }
@@ -624,8 +638,17 @@ dialog.sheet::backdrop { background: var(--shade); }
 [data-theme="eink"] .stepper { border-width: 1px; }
 [data-theme="eink"] .choice button[aria-pressed="true"] { background: #000; color: #fff; }
 [data-theme="eink"] .toc a[aria-current] { border-left-width: 4px; }
+/* With no grey to dim a button that does nothing here, its label is left out. */
 [data-theme="eink"] .stepper button:disabled,
-[data-theme="eink"] .pager button:disabled { text-decoration: line-through; }
+[data-theme="eink"] .pager button:disabled { color: transparent; }
+/* Android draws a scrollbar as a grey strip that stays on an e-ink screen. What scrolls
+   sideways still does. */
+[data-theme="eink"] .stream,
+[data-theme="eink"] .table-wrap,
+[data-theme="eink"] .highlight pre { scrollbar-width: none; }
+[data-theme="eink"] .stream::-webkit-scrollbar,
+[data-theme="eink"] .table-wrap::-webkit-scrollbar,
+[data-theme="eink"] .highlight pre::-webkit-scrollbar { display: none; }
 
 [data-theme="eink"] .pager {
   position: fixed;
@@ -649,7 +672,8 @@ dialog.sheet::backdrop { background: var(--shade); }
   font: inherit;
 }
 .pager output { display: grid; place-items: center; font-variant-numeric: tabular-nums lining-nums; }
-.pager button + output, .pager output + button { border-left: 1px solid var(--rule); }
+.pager > * + * { border-left: 1px solid var(--rule); }
+.pager [data-turn="top"] { flex: 0 0 18%; }
 [data-theme="eink"] .doc,
 [data-theme="eink"] .listing { padding-bottom: calc(5rem + 48px + env(safe-area-inset-bottom)); }
 

@@ -7,11 +7,15 @@
 {% extends "page.html.j2" %}
 
 {% block body %}
-<main class="offline" id="offline" data-home="/_home" data-assets="{{ assets }}">
+{# With `home` empty this is the page the service worker shows in place of one that
+   could not be loaded; it then waits for the server and loads that page again. #}
+<main class="offline" id="offline" data-home="{{ home }}" data-assets="{{ assets }}">
+  <img class="offline-icon" src="{{ static }}/icons/icon.svg" alt="" width="72" height="72">
   <h1>Lectern</h1>
   <div class="offline-msg" hidden>
     <p><strong>Lectern is not running.</strong></p>
     <p>On your Mac, run <code>lectern serve</code> in the folder you want to read. This page will carry on by itself.</p>
+    <p><button type="button" data-retry>Try again</button></p>
   </div>
   <noscript><p><a href="/_home">Open the listing</a></p></noscript>
 </main>

@@ -17,16 +17,13 @@ from nbformat import v4
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 
 
-def png(width: int, height: int) -> str:
-    """A valid PNG, base64-encoded: a blue panel with a darker frame, large enough to be
-    seen at its own size and plain enough that every viewer must draw it the same."""
-    frame, panel = bytes((7, 54, 66)), bytes((38, 139, 210))
+def _png(width: int, height: int, colour) -> str:
+    """A valid PNG, base64-encoded, with `colour(x, y)` giving each pixel as three bytes."""
     rows = bytearray()
     for y in range(height):
         rows.append(0)
         for x in range(width):
-            edge = x < 4 or y < 4 or x >= width - 4 or y >= height - 4
-            rows += frame if edge else panel
+            rows += colour(x, y)
 
     def chunk(kind: bytes, data: bytes) -> bytes:
         body = kind + data
@@ -38,7 +35,50 @@ def png(width: int, height: int) -> str:
     return base64.b64encode(image).decode()
 
 
-PNG = png(320, 200)
+def panel(width: int, height: int) -> str:
+    """A blue panel with a darker frame: for where any picture will do."""
+    frame, fill = bytes((7, 54, 66)), bytes((38, 139, 210))
+
+    def colour(x: int, y: int) -> bytes:
+        edge = x < 4 or y < 4 or x >= width - 4 or y >= height - 4
+        return frame if edge else fill
+
+    return _png(width, height, colour)
+
+
+def bar_chart(values: list[float], colours: list[tuple[int, int, int]]) -> str:
+    """A bar chart on white with axes: what a notebook's plots look like, in colours that
+    have to survive the trip (an e-ink screen with colour should show them)."""
+    width, height, left, bottom, top = 480, 300, 40, 260, 20
+    white, ink, grid = bytes((255, 255, 255)), bytes((60, 60, 60)), bytes((225, 225, 225))
+    slot = (width - left - 20) // len(values)
+    peak = max(values)
+
+    def colour(x: int, y: int) -> bytes:
+        if (x in (left, left + 1) and top <= y <= bottom) or (
+            y in (bottom, bottom + 1) and left <= x < width - 10
+        ):
+            return ink
+        if left < x < width - 10 and top <= y < bottom:
+            index, within = divmod(x - left - 10, slot)
+            if 0 <= index < len(values) and within < slot - 14:
+                if y >= bottom - (bottom - top - 10) * values[index] / peak:
+                    return bytes(colours[index])
+            if (bottom - y) % 48 == 0:
+                return grid
+        return white
+
+    return _png(width, height, colour)
+
+
+PNG = panel(320, 200)
+# Matplotlib's first five colours, and plotly's first three.
+CHART = bar_chart(
+    [3, 5, 2, 4, 1],
+    [(31, 119, 180), (255, 127, 14), (44, 160, 44), (214, 39, 40), (148, 103, 189)],
+)
+PLOTLY_COLOURS = ["#636efa", "#ef553b", "#00cc96"]
+PLOTLY_CHART = bar_chart([3, 1, 2], [(99, 110, 250), (239, 85, 59), (0, 204, 150)])
 SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">'
     '<script>alert(1)</script><rect width="40" height="20" fill="#268bd2"/></svg>'
@@ -126,8 +166,8 @@ CASES: dict[str, list] = {
             "plt.show()",
             [
                 display(
-                    {"image/png": PNG, "text/plain": "<Figure>"},
-                    **{"image/png": {"width": 320, "height": 200}},
+                    {"image/png": CHART, "text/plain": "<Figure size 480x300 with 1 Axes>"},
+                    **{"image/png": {"width": 480, "height": 300}},
                 )
             ],
         )
@@ -174,9 +214,21 @@ CASES: dict[str, list] = {
             [
                 display(
                     {
-                        "application/vnd.plotly.v1+json": {"data": [], "layout": {}},
+                        # A real chart, so a viewer that runs plotly draws the same three
+                        # bars that the saved picture shows.
+                        "application/vnd.plotly.v1+json": {
+                            "data": [
+                                {
+                                    "type": "bar",
+                                    "x": ["a", "b", "c"],
+                                    "y": [3, 1, 2],
+                                    "marker": {"color": PLOTLY_COLOURS},
+                                }
+                            ],
+                            "layout": {"width": 480, "height": 300},
+                        },
                         "text/html": '<div id="p1"></div><script>Plotly.newPlot("p1")</script>',
-                        "image/png": PNG,
+                        "image/png": PLOTLY_CHART,
                     }
                 )
             ],

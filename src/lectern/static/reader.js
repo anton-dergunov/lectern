@@ -27,33 +27,64 @@
       });
   }
 
+  // Where this script was loaded from is where the icon is.
+  var assets = document.currentScript ? document.currentScript.src.replace(/reader\.js.*$/, "") : "";
+  var served = !("static" in root.dataset);
+
+  // Behind HTTPS (or on localhost) a service worker can stand in for the browser's own
+  // error page. Elsewhere browsers do not offer one, and this does nothing.
+  if (served && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/_sw.js", { scope: "/" }).catch(function () {});
+  }
+
   // The "not running" screen: shown over the page, checked again every two seconds, and
   // gone by itself, on to `target`, once the server answers.
-  function waitForServer(target) {
+  var waitingFor = null;
+
+  function waitForServer(target, pause) {
     var screen = document.getElementById("offline");
     if (!screen) {
       screen = document.createElement("div");
       screen.id = "offline";
       screen.className = "offline";
       screen.innerHTML =
+        '<img class="offline-icon" src="' + assets + 'icons/icon.svg" alt="" width="72" height="72">' +
         "<h1>Lectern</h1>" +
         '<div class="offline-msg"><p><strong>Lectern is not running.</strong></p>' +
         "<p>On your Mac, run <code>lectern serve</code> in the folder you want to read. " +
-        "This page will carry on by itself.</p></div>";
+        "This page will carry on by itself.</p>" +
+        '<p><button type="button" data-retry>Try again</button></p></div>';
       document.body.appendChild(screen);
     }
     screen.hidden = false;
     screen.querySelector(".offline-msg").hidden = false;
-    (function retry() {
+    var already = waitingFor !== null;
+    waitingFor = target;
+    if (already) return;
+
+    var timer = 0;
+    var button = screen.querySelector("[data-retry]");
+    function retry() {
+      clearTimeout(timer);
+      button.disabled = true;
       ping().then(
         function () {
-          location.replace(target);
+          location.replace(waitingFor);
         },
         function () {
-          setTimeout(retry, RETRY_EVERY);
+          button.disabled = false;
+          timer = setTimeout(retry, RETRY_EVERY);
         }
       );
-    })();
+    }
+    button.addEventListener("click", retry);
+    // Timers are slowed or stopped while an app is in the background; ask at once on
+    // coming back instead of leaving the screen up until the next tick.
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") retry();
+    });
+    window.addEventListener("pageshow", retry);
+    timer = setTimeout(retry, pause || 0);
   }
 
   // The start page. It is cached for a long time so that it still opens when the server
@@ -61,6 +92,12 @@
   var shell = document.getElementById("offline");
   if (shell) {
     var home = shell.dataset.home;
+    if (!home) {
+      // Put here by the service worker instead of a page that did not load. The pause
+      // keeps a server that answers pings but not this page from being asked in a loop.
+      waitForServer(location.href, 1500);
+      return;
+    }
     ping().then(
       function (info) {
         // A newer lectern than the one that cached this page: refresh the cached copy.
@@ -87,7 +124,7 @@
     if (!link || link.target || link.origin !== location.origin) return;
     if (link.pathname === location.pathname && link.hash) return;
     // A published site has no lectern server behind it to ask.
-    if ("static" in root.dataset) return;
+    if (!served) return;
     event.preventDefault();
     ping().then(
       function () {
@@ -278,6 +315,7 @@
     var label = page + " / " + total;
     var output = pager.querySelector("[data-page]");
     if (output.textContent !== label) output.textContent = label;
+    pager.querySelector("[data-turn='top']").disabled = y <= 0;
     pager.querySelector("[data-turn='-1']").disabled = y <= 0;
     pager.querySelector("[data-turn='1']").disabled = y >= last - 1;
   }
@@ -285,7 +323,9 @@
   if (pager) {
     pager.addEventListener("click", function (event) {
       var button = event.target.closest("[data-turn]");
-      if (button) turn(Number(button.dataset.turn));
+      if (!button) return;
+      if (button.dataset.turn === "top") window.scrollTo({ top: 0, behavior: "instant" });
+      else turn(Number(button.dataset.turn));
     });
     window.addEventListener("scroll", updatePager, { passive: true });
     window.addEventListener("resize", updatePager);

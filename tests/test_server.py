@@ -294,3 +294,26 @@ def test_ping_tells_only_this_machine_where_folders_are(server, root: Path):
             ReaderHandler.client_address = handler_address
     remote = json.loads(seen["body"])
     assert "paths" not in remote and remote["roots"] == ["proj"]
+
+
+def test_service_worker_and_its_not_running_page(server):
+    response, script = request(server, "/_sw.js")
+    assert response.status == 200 and "javascript" in response.getheader("Content-Type")
+    assert response.getheader("Cache-Control") == "no-cache"
+    assert "__" not in script.split("const CACHE")[1].split(";")[0]
+    needed = json.loads(script.split("const NEEDED = ")[1].split(";")[0])
+    for url in needed:
+        assert request(server, url)[0].status == 200, url
+
+    response, page = request(server, "/_offline")
+    assert response.status == 200 and 'data-home=""' in page and "data-retry" in page
+    # Everything the page loads is in the worker's list, or it would open unstyled.
+    import re
+
+    loaded = re.findall(r'(?:href|src)="(/_static/[^"]+\.(?:css|js|svg))"', page)
+    assert loaded and set(loaded) <= set(needed)
+
+
+def test_own_error_pages_are_marked_as_lecterns(server):
+    for path in ("/proj/", "/proj/missing.md", "/_ping"):
+        assert request(server, path)[0].getheader("X-Lectern"), path
