@@ -142,7 +142,7 @@
   var holdBar = 0;
 
   function eink() {
-    return root.dataset.theme === "eink";
+    return root.dataset.theme.indexOf("eink") === 0;
   }
 
   function showBar(show) {
@@ -227,6 +227,7 @@
       button.setAttribute("aria-pressed", on);
     });
     settings.querySelector("[data-modes]").hidden = prefs.family === "eink";
+    settings.querySelector("[data-inks]").hidden = prefs.family !== "eink";
     // Only where there is a file that can change under the page, and not on e-ink, where
     // a page redrawing by itself is a full flash and keeps the radio awake.
     settings.querySelector("[data-follow-setting]").hidden =
@@ -302,7 +303,10 @@
   }
 
   function turn(direction) {
-    window.scrollTo({ top: window.scrollY + direction * pageStep(), behavior: "instant" });
+    var to = window.scrollY + direction * pageStep();
+    if (direction === "start") to = 0;
+    if (direction === "end") to = lastScroll();
+    window.scrollTo({ top: to, behavior: "instant" });
   }
 
   function updatePager() {
@@ -315,17 +319,26 @@
     var label = page + " / " + total;
     var output = pager.querySelector("[data-page]");
     if (output.textContent !== label) output.textContent = label;
-    pager.querySelector("[data-turn='top']").disabled = y <= 0;
+    pager.querySelector("[data-turn='start']").disabled = y <= 0;
     pager.querySelector("[data-turn='-1']").disabled = y <= 0;
     pager.querySelector("[data-turn='1']").disabled = y >= last - 1;
+    pager.querySelector("[data-turn='end']").disabled = y >= last - 1;
   }
 
   if (pager) {
     pager.addEventListener("click", function (event) {
       var button = event.target.closest("[data-turn]");
-      if (!button) return;
-      if (button.dataset.turn === "top") window.scrollTo({ top: 0, behavior: "instant" });
-      else turn(Number(button.dataset.turn));
+      if (button) {
+        var to = button.dataset.turn;
+        turn(to === "start" || to === "end" ? to : Number(to));
+      } else if (event.target.closest("[data-page]")) {
+        // The page number puts the top bar away and brings it back, for a screen that is
+        // all text. Remembered on this device; the same tap is the only way back.
+        keepingPlace(function () {
+          window.lectern.set("noBar", !prefs.noBar);
+        });
+        updatePager();
+      }
     });
     window.addEventListener("scroll", updatePager, { passive: true });
     window.addEventListener("resize", updatePager);
@@ -342,7 +355,15 @@
       else if (x > 1 - EDGE) turn(1);
     });
 
-    var KEYS = { PageDown: 1, ArrowRight: 1, " ": 1, PageUp: -1, ArrowLeft: -1 };
+    var KEYS = {
+      PageDown: 1,
+      ArrowRight: 1,
+      " ": 1,
+      PageUp: -1,
+      ArrowLeft: -1,
+      Home: "start",
+      End: "end",
+    };
     document.addEventListener("keydown", function (event) {
       if (!eink() || !KEYS[event.key] || event.metaKey || event.ctrlKey || event.altKey) return;
       if (document.querySelector("dialog[open]")) return;

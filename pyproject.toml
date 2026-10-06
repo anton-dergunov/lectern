@@ -1,6 +1,6 @@
 [project]
 name = "lectern"
-version = "0.2.2"
+version = "0.2.3"
 description = "Read Jupyter notebooks and markdown on a tablet, from a small read-only local server"
 license = "MIT"
 readme = "README.md"

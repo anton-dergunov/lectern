@@ -126,7 +126,7 @@
 /* Black on white with nothing in between, for e-ink: greys dither, colours vanish, and
    every repaint is slow and leaves ghosts. Syntax is told apart by weight and slant
    (pygments.css), and reader.css turns off everything that moves. */
-[data-theme="eink"] {
+[data-theme^="eink"] {
   color-scheme: light;
   --bg: #ffffff;
   --bg-alt: #ffffff;
@@ -154,6 +154,34 @@
   --ansi-blue: #000000;
   --ansi-magenta: #000000;
   --ansi-cyan: #000000;
+
+  /* The lines that frame the page, top and bottom: grey, which nearly every e-ink screen
+     can show, so they sit behind the text instead of competing with it. */
+  --edge: #555555;
+  --edge-faint: #a0a0a0;
+}
+
+/* The same page for an e-ink screen that has colour. Text and rules stay black; code,
+   printed colours and errors get colour back. Such screens wash colours out, so these are
+   darker and more saturated than they would be on glass. */
+[data-theme="eink-colour"] {
+  --link: #0033b3;
+  --err: #b00000;
+
+  --syn-kw: #0033b3;
+  --syn-str: #067d17;
+  --syn-num: #1750eb;
+  --syn-com: #4a4a4a;
+  --syn-fn: #7a2e9d;
+  --syn-builtin: #9a4a00;
+  --syn-op: #000000;
+
+  --ansi-red: #b00000;
+  --ansi-green: #067d17;
+  --ansi-yellow: #8a6100;
+  --ansi-blue: #0033b3;
+  --ansi-magenta: #8a1a9a;
+  --ansi-cyan: #00627a;
 }
 
 /* The text size is set by boot.js as a pixel value; type and spacing are in rem and follow.

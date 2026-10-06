@@ -272,7 +272,51 @@ def run(engine_name: str, playwright) -> bool:
         results.append(
             check("the page key turns on", page.evaluate("window.scrollY") > back + 0.6 * screen)
         )
-        page.get_by_role("button", name="Top", exact=True).click()
+        page.get_by_role("button", name="End", exact=True).click()
+        page.wait_for_timeout(150)
+        last_page = label.inner_text().split(" / ")
+        at_end = page.evaluate(
+            "window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1"
+        )
+        results.append(
+            check("end goes to the last page", at_end and last_page[0] == last_page[1], last_page)
+        )
+
+        bar_height = page.locator(".bar").evaluate("e => e.offsetHeight")
+        label.click()
+        hidden = not page.locator(".bar").is_visible()
+        page.reload()
+        settle(page)
+        still_hidden = not page.locator(".bar").is_visible()
+        results.append(
+            check(
+                "a tap on the page number puts the bar away, and it stays away",
+                hidden and still_hidden,
+            )
+        )
+        label.click()
+        back_again = page.locator(".bar").evaluate("e => e.offsetHeight") == bar_height
+        results.append(check("and another brings it back", back_again))
+
+        page.get_by_role("button", name="Reading settings").click()
+        page.get_by_role("button", name="With colour").click()
+        coloured = page.locator(".highlight .nb").first.evaluate("e => getComputedStyle(e).color")
+        text = page.evaluate("getComputedStyle(document.body).color")
+        results.append(
+            check(
+                "colour e-ink colours code, not text",
+                theme(page) == "eink-colour" and coloured != text == "rgb(0, 0, 0)",
+                (coloured, text),
+            )
+        )
+        page.get_by_role("button", name="Black only").click()
+        mono = page.locator(".highlight .nb").first.evaluate("e => getComputedStyle(e).color")
+        results.append(
+            check("black only is black", theme(page) == "eink" and mono == "rgb(0, 0, 0)", mono)
+        )
+        page.locator("#settings").get_by_role("button", name="Done").click()
+
+        page.get_by_role("button", name="Start", exact=True).click()
         page.wait_for_timeout(150)
         at_top = page.evaluate("window.scrollY") == 0
         results.append(

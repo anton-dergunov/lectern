@@ -93,6 +93,12 @@ After Anton set up Tailscale and read on the Boox (version 0.2.2):
 - **Kept as it is, after Anton asked:** the top bar stays fixed in the e-ink theme. He does sometimes scroll by finger there, but hiding and showing the bar is a repaint each time and would change the height a page turn has to cover; it costs 44px on a 13-inch screen. And the e-ink theme stays black on white for text, ANSI colours included, although the Boox has colour: pictures and SVG keep their colours, which is where colour carries information.
 - **Fixtures have distinct pictures now:** `png` is a five-colour bar chart, `plotly-with-picture` carries real plotly data and a matching three-bar picture, `attachment` keeps the blue panel. Anton had taken three identical placeholder panels for a rendering bug.
 
+Asked for by Anton after that (version 0.2.3):
+
+- **Colour e-ink.** In the e-ink theme the settings offer "Black only" and "With colour" (pref `ink`, `data-theme` `eink` or `eink-colour`). Every e-ink rule is written `[data-theme^="eink"]` so both get it. Colour brings back syntax, ANSI, link and error colours, darker and more saturated than on glass; text and rules stay black. The default stays black: a colour e-ink screen cannot be told from a grey one.
+- **Pager:** Start, Previous, page number, Next, End; Home and End keys too. The lines framing the page (under the bar, above the footer) are grey `--edge`, and the dividers inside the footer a fainter `--edge-faint`.
+- **The page number toggles the top bar** in the e-ink theme (pref `noBar`, attribute `data-no-bar`, applied by `boot.js` so it does not flash back on each page). The page step and the reading line measure the bar, so they follow. It is deliberately not in the settings: with the bar hidden the settings cannot be reached, and the same tap is the way back.
+
 Things to know when continuing:
 
 - **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.

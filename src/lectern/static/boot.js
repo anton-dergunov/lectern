@@ -11,6 +11,9 @@
     width: "m",
     hideCode: false,
     follow: false,
+    // The two below only apply in the e-ink theme.
+    ink: "mono",
+    noBar: false,
   };
   // The page background of each theme, for the browser and status bar around the page.
   var BAR_COLORS = {
@@ -19,6 +22,7 @@
     "plain-light": "#ffffff",
     "plain-dark": "#000000",
     eink: "#ffffff",
+    "eink-colour": "#ffffff",
   };
   var FAMILIES = ["solarized", "plain", "eink"];
   var WIDTHS = ["n", "m", "w", "x", "f"];
@@ -64,6 +68,7 @@
     if (FAMILIES.indexOf(prefs.family) < 0) prefs.family = DEFAULTS.family;
     if (["light", "dark", "system"].indexOf(prefs.mode) < 0) prefs.mode = DEFAULTS.mode;
     if (WIDTHS.indexOf(prefs.width) < 0) prefs.width = DEFAULTS.width;
+    if (["mono", "colour"].indexOf(prefs.ink) < 0) prefs.ink = DEFAULTS.ink;
     prefs.size = Math.min(SIZE.max, Math.max(SIZE.min, Math.round(prefs.size)));
     return prefs;
   }
@@ -71,12 +76,14 @@
   function apply(prefs) {
     var root = document.documentElement;
     var mode = prefs.mode === "system" ? (dark.matches ? "dark" : "light") : prefs.mode;
-    // E-ink has one look; light and dark do not apply to it.
-    var theme = prefs.family === "eink" ? "eink" : prefs.family + "-" + mode;
+    // E-ink is always dark on light; what varies is whether its screen has colour.
+    var eink = prefs.ink === "colour" ? "eink-colour" : "eink";
+    var theme = prefs.family === "eink" ? eink : prefs.family + "-" + mode;
     root.dataset.theme = theme;
     root.dataset.width = prefs.width;
     root.style.setProperty("--size", prefs.size + "px");
     root.toggleAttribute("data-hide-code", prefs.hideCode);
+    root.toggleAttribute("data-no-bar", prefs.noBar);
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = BAR_COLORS[theme];
   }

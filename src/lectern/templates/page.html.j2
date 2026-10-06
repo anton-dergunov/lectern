@@ -80,10 +80,11 @@
 
 {# Shown only in the e-ink theme, where turning pages replaces scrolling. #}
 <footer class="pager">
-  <button type="button" data-turn="top">Top</button>
+  <button type="button" data-turn="start">Start</button>
   <button type="button" data-turn="-1">Previous</button>
-  <output data-page></output>
+  <output data-page title="Tap to hide or show the top bar"></output>
   <button type="button" data-turn="1">Next</button>
+  <button type="button" data-turn="end">End</button>
 </footer>
 
 <dialog class="sheet" id="settings" aria-label="Reading settings">
@@ -113,6 +114,10 @@
         <button type="button" data-pref="family" data-value="solarized">Solarized</button>
         <button type="button" data-pref="family" data-value="plain">Black &amp; white</button>
         <button type="button" data-pref="family" data-value="eink">E-ink</button>
+      </div>
+      <div class="choice" data-inks>
+        <button type="button" data-pref="ink" data-value="mono">Black only</button>
+        <button type="button" data-pref="ink" data-value="colour">With colour</button>
       </div>
       <div class="choice" data-modes>
         <button type="button" data-pref="mode" data-value="light">Light</button>
