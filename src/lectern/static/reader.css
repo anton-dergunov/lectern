@@ -3,10 +3,92 @@
    and tables in that same column. 14px code fits about 80 characters there; longer lines
    scroll sideways inside their block. */
 
+/* ---- Bundled fonts ----
+   Apple devices have Charter, SF Mono and San Francisco, and the stacks below name those
+   first, so there these files are never fetched. Android and most other systems have
+   nothing comparable; they get Charis SIL (drawn from Charter), JetBrains Mono and Inter.
+   Latin only: a character outside the range comes from a system font. Licences are beside
+   the files in fonts/. */
+
+@font-face {
+  font-family: "Lectern Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/charis-sil-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/charis-sil-400-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Serif";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/charis-sil-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Serif";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/charis-sil-700-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/jetbrains-mono-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Mono";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/jetbrains-mono-400-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/jetbrains-mono-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/inter-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lectern Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/inter-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
-  --font-body: Charter, "Iowan Old Style", ui-serif, "Noto Serif", Georgia, serif;
-  --font-code: ui-monospace, "SF Mono", Menlo, "Roboto Mono", "Noto Sans Mono", monospace;
-  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: Charter, "Iowan Old Style", "Lectern Serif", ui-serif, "Noto Serif", Georgia, serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, "Lectern Mono", "Roboto Mono", monospace;
+  /* The two Apple names come first because `system-ui` exists everywhere and would
+     otherwise always win; elsewhere the bundled sans is reached before it. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Lectern Sans", system-ui, "Segoe UI", Roboto, sans-serif;
   --leading: 1.6;
   --code-size: 0.737rem;   /* 14px at the default size */
   --stream-size: 0.71rem;  /* 13.5px */
@@ -255,8 +337,33 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 figure.img { margin: 0; }
 figure.img img { display: block; }
 
+/* TeX source, until reader.js typesets it; and still, if it could not. */
 .math { font-family: var(--font-code); font-size: 0.82em; }
-.math.display { display: block; overflow-x: auto; white-space: pre-wrap; }
+.math.display { display: block; margin: 0.9em 0; overflow-x: auto; white-space: pre-wrap; }
+.math.typeset { font: inherit; white-space: normal; }
+.math.display.typeset { overflow-y: hidden; }
+.math .katex { font-size: 1.1em; }
+.math .katex-display { margin: 0; }
+
+.placeholder {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed var(--fg-muted);
+  border-radius: 6px;
+  font: 0.74rem/1.5 var(--font-ui);
+}
+
+.traceback > summary {
+  padding: 0.5rem 0 0.5rem 0.6rem;
+  border-left: 2px solid var(--err);
+  cursor: pointer;
+  font-family: var(--font-code);
+  font-size: var(--stream-size);
+  overflow-wrap: anywhere;
+}
+.traceback > summary .label { font-family: var(--font-ui); color: var(--fg-muted); }
+.traceback[open] > summary { margin-bottom: 0.4rem; }
+.error strong { color: var(--err); }
 
 /* ---- Tables ---- */
 

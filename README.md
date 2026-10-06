@@ -8,6 +8,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 
 - a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time;
 - each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, wide tables that scroll sideways on their own;
+- math typeset, plots shown from the pictures saved with them, and a short note where an output needs a running notebook (a widget, an interactive plot saved without a picture);
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
 - long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
@@ -120,4 +121,6 @@ After a deliberate change to how notebooks render, `uv run pytest --update-golde
 
 ## License and credits
 
-MIT, see [LICENSE](LICENSE). Colours are Ethan Schoonover's [Solarized](https://ethanschoonover.com/solarized/). Notebook conversion is [nbconvert](https://nbconvert.readthedocs.io/).
+MIT, see [LICENSE](LICENSE). Colours are Ethan Schoonover's [Solarized](https://ethanschoonover.com/solarized/). Notebook conversion is [nbconvert](https://nbconvert.readthedocs.io/). Math is typeset by [KaTeX](https://katex.org/) (MIT).
+
+On devices without Apple's fonts the pages use [Charis SIL](https://software.sil.org/charis/), [JetBrains Mono](https://www.jetbrains.com/lp/mono/) and [Inter](https://rsms.me/inter/), each under the SIL Open Font License; the licences are in `src/lectern/static/fonts`.

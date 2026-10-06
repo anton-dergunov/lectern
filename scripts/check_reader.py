@@ -163,6 +163,31 @@ def run(engine_name: str, playwright) -> bool:
         position = name_token.evaluate("e => getComputedStyle(e).position")
         results.append(check("code tokens are laid out normally", position == "static", position))
 
+        # ---- Math ----
+        fetched: list[str] = []
+        page.on("request", lambda request: fetched.append(request.url))
+        page.goto(server.url("math.ipynb"))
+        typeset = page.locator(".math.typeset .katex").count()
+        results.append(check("math is typeset", typeset == 3, typeset))
+        printed = page.locator("pre.stream").inner_text()
+        results.append(check("a printed dollar sign is left alone", "$x$" in printed, printed))
+        page.goto(server.url("latex-output.ipynb"))
+        shown = page.locator(".out .math.typeset").inner_text()
+        results.append(
+            check("a LaTeX output is typeset too", "$" not in shown and "x" in shown, shown)
+        )
+        fetched.clear()
+        page.goto(server.url("stderr.ipynb"))
+        page.wait_for_load_state("networkidle")
+        asked = [url for url in fetched if "katex" in url]
+        results.append(check("a page without math fetches no math typesetting", not asked, asked))
+
+        page.goto(server.url("long-traceback.ipynb"))
+        folded = not page.locator("pre.error").is_visible()
+        page.locator(".traceback summary").click()
+        opened = page.locator("pre.error").is_visible()
+        results.append(check("a long traceback starts folded and opens", folded and opened))
+
         # ---- One column ----
         page.goto(long_read)
         widths = page.evaluate(

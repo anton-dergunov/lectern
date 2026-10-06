@@ -122,6 +122,18 @@ def test_index_lists_the_documents(src: Path, tmp_path: Path):
     assert 'href="study/"' not in index and "Recently changed" not in index
 
 
+def test_math_typesetting_is_shipped_only_with_math(src: Path, tmp_path: Path):
+    build(src, tmp_path / "plain", options())
+    assert not [name for name in files(tmp_path / "plain") if "katex" in name]
+    assert "_static/fonts/charis-sil-400-normal.woff2" in files(tmp_path / "plain")
+
+    write_notebook(src / "study" / "sums.ipynb", [v4.new_markdown_cell("# Sums\n\n$a + b$")])
+    build(src, tmp_path / "math", options())
+    assert "_static/vendor/katex/katex.min.js" in files(tmp_path / "math")
+    assert "vendor/katex/katex.min.js" in (tmp_path / "math/study/sums.html").read_text()
+    assert "katex" not in (tmp_path / "math/study/first.html").read_text()
+
+
 def test_markdown_all_and_none(src: Path, tmp_path: Path):
     build(src, tmp_path / "all", options(markdown="all"))
     build(src, tmp_path / "none", options(markdown="none"))

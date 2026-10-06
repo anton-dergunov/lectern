@@ -232,6 +232,7 @@ def build(src: Path, out: Path, options: SiteOptions, clean: bool = False) -> Bu
             back=f"{up}index.html",
             fragment=fragment,
             toc=rendered.toc,
+            math=rendered.has_math,
             path=str(rel),
             mtime=path.stat().st_mtime_ns,
         )
@@ -263,7 +264,12 @@ def build(src: Path, out: Path, options: SiteOptions, clean: bool = False) -> Bu
     )
     (out / "index.html").write_text(index, encoding="utf-8")
 
-    shutil.copytree(STATIC, out / "_static", dirs_exist_ok=True)
+    # KaTeX is most of the assets' weight; a site with no math does not carry it.
+    has_math = any(rendered.has_math for _, rendered in documents.values())
+    unused = () if has_math else ("katex",)
+    shutil.copytree(
+        STATIC, out / "_static", dirs_exist_ok=True, ignore=shutil.ignore_patterns(*unused)
+    )
     # GitHub Pages runs Jekyll by default, and Jekyll drops directories starting with "_".
     (out / ".nojekyll").touch()
 

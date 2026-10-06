@@ -307,6 +307,31 @@
     });
   }
 
+  // ---- Math ----
+  // Before anything measures the page: typeset math is not the size of its source. Each
+  // formula is in its own element, put there by the renderer; KaTeX is only on pages that
+  // have some. One that fails to typeset is left as the TeX it was written in.
+
+  if (window.katex) {
+    // A `text/latex` output comes wrapped in the delimiters that markdown math has lost.
+    var DELIMITED = [/^\$\$([\s\S]+)\$\$$/, /^\\\[([\s\S]+)\\\]$/, /^\$([\s\S]+)\$$/, /^\\\(([\s\S]+)\\\)$/];
+    document.querySelectorAll(".math").forEach(function (element) {
+      var tex = element.textContent.trim();
+      DELIMITED.some(function (pattern) {
+        var inside = pattern.exec(tex);
+        if (inside) tex = inside[1];
+        return inside;
+      });
+      try {
+        window.katex.render(tex, element, {
+          displayMode: element.classList.contains("display"),
+          throwOnError: true,
+        });
+        element.classList.add("typeset");
+      } catch (e) {}
+    });
+  }
+
   // ---- Code cells ----
 
   var OPEN_UP_TO = 30;

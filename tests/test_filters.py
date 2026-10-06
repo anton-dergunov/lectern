@@ -1,4 +1,4 @@
-from lectern.render.filters import clean_table_html, stream_lines
+from lectern.render.filters import clean_table_html, error_html, stream_lines
 
 from .conftest import PANDAS_HTML
 
@@ -38,3 +38,35 @@ def test_stream_lines_keeps_colour_spans_nested_across_lines():
         '<span class="l"><span class="ansi-red-fg">one</span>\n</span>'
         '<span class="l"><span class="ansi-red-fg">two</span> three\n</span>'
     )
+
+
+def test_html_that_was_only_a_script_becomes_a_note():
+    html = str(clean_table_html('<div id="plot"></div><script>draw("plot")</script>'))
+
+    assert 'class="placeholder"' in html and "<script" not in html and 'id="plot"' not in html
+    # Something to show remains something to show.
+    assert "placeholder" not in str(clean_table_html("<p>text</p><script>x()</script>"))
+    assert "placeholder" not in str(clean_table_html('<img src="a.png"><script>x()</script>'))
+    assert "placeholder" not in str(clean_table_html("<div></div>"))
+
+
+def test_short_traceback_has_its_last_line_in_bold():
+    output = {
+        "ename": "ValueError",
+        "evalue": "bad",
+        "traceback": ["line one", "", "ValueError: bad"],
+    }
+
+    assert str(error_html(output)) == (
+        '<pre class="error">line one\n\n<strong>ValueError: bad</strong></pre>'
+    )
+
+
+def test_long_traceback_is_folded_under_the_error():
+    frames = [f"frame {n} <module>" for n in range(40)]
+    output = {"ename": "KeyError", "evalue": "'<x>'", "traceback": [*frames, "KeyError: '<x>'"]}
+    html = str(error_html(output))
+
+    assert html.startswith('<details class="traceback"><summary><strong>KeyError: ')
+    assert "&lt;x&gt;" in html and "<x>" not in html
+    assert "41 lines" in html and "frame 39 &lt;module&gt;" in html

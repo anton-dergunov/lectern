@@ -2,11 +2,13 @@
 
 ## State on 2026-10-06
 
-**Milestones 1 to 3 are built and used; milestone 4 is built but not published.** Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all three rounds are folded in. The repository is public at `anton-dergunov/lectern` with milestones 1 to 3 pushed.
+**Milestones 1 to 5 are built.** Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all of it is folded in. The repository is public at `anton-dergunov/lectern`; milestones 1 to 4 are pushed and tagged `v0.1.0`.
 
-Milestone 4, `lectern build`, is verified on the Mac: unit tests, a build of ml-explorations into a scratch directory (the mem0 page is 69 KB against the old 351 KB), and the built pages opened from `file://` in Chromium and WebKit by `scripts/check_reader.py`. **Still to do for milestone 4, all of it outward-facing and waiting for Anton:** push, tag `v0.1.0`, then in ml-explorations add `lectern.toml`, replace the build steps in `pages.yml` (section 11), and run the workflow on a branch. ml-explorations and agent-memory-eval are untouched.
+**Milestone 4** is published on the lectern side. In ml-explorations the changes are made and **uncommitted, for Anton to commit and push**: `lectern.toml`, the new build steps in `.github/workflows/pages.yml` (pinned to `v0.1.0`), and the publishing sections of its README and `CLAUDE.md`. `tools/build_site.py` is still there, to delete once a deploy with lectern has succeeded. The `github-pages` environment only accepts deployments from `main`, so a `workflow_dispatch` on another branch tests the build job and its deploy job is refused; the live site changes only on a push to `main`.
 
-**Next step:** those publishing steps, then milestone 5 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
+**Milestone 5 and the bundled fonts are after the tag**, with the version raised to 0.2.0: sites pinned to `v0.1.0` get neither until a `v0.2.0` tag exists and their pin is moved. Verified on the Mac only: unit and golden tests, `scripts/check_reader.py` in Chromium and WebKit, and screenshots of the two real notebooks the milestone names (math in blog-code, a PNG plot in long-tail-multi-label-classification).
+
+**Next step:** Anton commits both repositories and looks at the fonts on Android and the Boox; then milestone 6 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
 
 Where the build differs from the design below (the design text is left as written):
 
@@ -35,7 +37,13 @@ Reading (milestone 2 and the feedback):
 - **Stream clamp and wrap toggle are added by `reader.js`**, not rendered by the server: above 60 lines the first 30 show; "No wrap" appears when a line is over 100 characters. Without script all lines show.
 - **Contents** is a side sheet listing h1 to h3, with the current section marked when it opens.
 - **Not done from the design's milestone 2 list:** nothing. Extra: `scripts/check_reader.py` covers more than position restore.
-- **Math** is wrapped in `.math` elements and shown as TeX source in the code font until KaTeX arrives in milestone 5.
+- **Fonts are bundled** for systems without the Apple ones: Charis SIL (drawn from Charter) for text, JetBrains Mono for code, Inter for the interface, Latin subsets as woff2 in `static/fonts`, about 200 KB. The stacks name Charter, SF Mono and the Apple system font first, so an iPad or Mac never fetches them. This came from Anton finding the type on Android less good than on the iPad, and it also answers milestone 3's open question about fonts on the Boox, pending his look at it.
+
+Math and richer outputs (milestone 5):
+
+- **KaTeX 0.19 is vendored** in `static/vendor/katex` (script, stylesheet, woff2 fonts only) and added to a page only when its render has math; `reader.js` typesets each `.math` element before anything measures the page and leaves the TeX source where typesetting fails. A `text/latex` output keeps its `$` delimiters in the HTML and loses them in the script. A static build copies KaTeX only if some page has math.
+- **Interactive outputs** (plotly, widgets, bokeh, vega-lite) keep only their saved picture when the output has one; otherwise a short note takes the output's place. The same note replaces an HTML output that was nothing but a script, and any output with no form the reader shows. A widget's text `repr` is no longer shown. The note has no link to JupyterLab: `lectern lab` does not exist yet and a published site has no Lab to link to.
+- **Tracebacks** are built by the `error_html` filter: the line naming the error is bold and in the error colour, and above 25 lines the traceback is folded under that line.
 - `render/document.py`, `templates/shell.html.j2`, `scripts/_local.py` and `scripts/check_reader.py` are new; `config.py`, `lab.py`, `agent.py` do not exist yet.
 
 Static build (milestone 4):

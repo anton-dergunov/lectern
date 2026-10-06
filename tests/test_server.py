@@ -56,6 +56,30 @@ def test_notebook_page(server):
     assert "script-src 'self'" in response.getheader("Content-Security-Policy")
 
 
+def test_math_typesetting_is_loaded_only_where_there_is_math(server, root: Path):
+    _, with_math = request(server, "/proj/notebooks/sample.ipynb")
+    _, without = request(server, "/proj/docs/note.md")
+
+    assert "vendor/katex/katex.min.js" in with_math and "katex" not in without
+    script = with_math.split('<script src="')[1].split('"')[0]
+    assert request(server, script)[0].status == 200
+    font = script.rsplit("/", 1)[0] + "/fonts/KaTeX_Main-Regular.woff2"
+    response, _ = request(server, font)
+    assert response.status == 200 and response.getheader("Content-Type") == "font/woff2"
+
+
+def test_every_bundled_font_the_stylesheet_names_is_served(server):
+    import re
+
+    _, body = request(server, "/proj/")
+    stylesheet = next(u for u in re.findall(r'href="([^"]+)"', body) if u.endswith("reader.css"))
+    _, css = request(server, stylesheet)
+    fonts = re.findall(r'url\("(fonts/[^"]+)"\)', css)
+    assert len(fonts) == 9
+    for font in fonts:
+        assert request(server, stylesheet.rsplit("/", 1)[0] + "/" + font)[0].status == 200, font
+
+
 def test_markdown_page_and_image(server):
     response, body = request(server, "/proj/docs/note.md")
     assert response.status == 200 and "<title>A note</title>" in body

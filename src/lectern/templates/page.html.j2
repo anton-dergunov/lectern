@@ -22,6 +22,11 @@
 <link rel="stylesheet" href="{{ static }}/themes.css{{ version }}">
 <link rel="stylesheet" href="{{ static }}/reader.css{{ version }}">
 <link rel="stylesheet" href="{{ static }}/pygments.css{{ version }}">
+{# Only on pages that have math: KaTeX is larger than everything else on the page together. #}
+{% if math %}
+<link rel="stylesheet" href="{{ static }}/vendor/katex/katex.min.css{{ version }}">
+<script src="{{ static }}/vendor/katex/katex.min.js{{ version }}" defer></script>
+{% endif %}
 <script src="{{ static }}/boot.js{{ version }}"></script>
 <script src="{{ static }}/reader.js{{ version }}" defer></script>
 </head>

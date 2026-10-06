@@ -67,7 +67,7 @@
 {%- endblock data_text %}
 
 {% block error -%}
-<pre class="error">{{ super.super() }}</pre>
+{{ output | error_html }}
 {%- endblock error %}
 
 {% block data_html scoped -%}

@@ -148,6 +148,40 @@ CASES: dict[str, list] = {
             "fig.show()", [display({"application/vnd.plotly.v1+json": {"data": [], "layout": {}}})]
         )
     ],
+    "plotly-with-picture": [
+        code(
+            "fig.show()",
+            [
+                display(
+                    {
+                        "application/vnd.plotly.v1+json": {"data": [], "layout": {}},
+                        "text/html": '<div id="p1"></div><script>Plotly.newPlot("p1")</script>',
+                        "image/png": PNG,
+                    }
+                )
+            ],
+        )
+    ],
+    "script-only-html": [
+        code("chart", [result({"text/html": '<div id="c1"></div><script>draw("c1")</script>'})])
+    ],
+    "long-traceback": [
+        code(
+            "deep()",
+            [
+                v4.new_output(
+                    "error",
+                    ename="RecursionError",
+                    evalue="maximum recursion depth exceeded",
+                    traceback=[
+                        "Traceback (most recent call last)",
+                        *[f'  File "deep.py", line {n}, in deep\n    deep()' for n in range(1, 16)],
+                        "\x1b[0;31mRecursionError\x1b[0m: maximum recursion depth exceeded",
+                    ],
+                )
+            ],
+        )
+    ],
     "widget": [
         code(
             "slider",
