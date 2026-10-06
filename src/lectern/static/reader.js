@@ -190,6 +190,10 @@
       button.setAttribute("aria-pressed", on);
     });
     settings.querySelector("[data-modes]").hidden = prefs.family === "eink";
+    // Only where there is a file that can change under the page, and not on e-ink, where
+    // a page redrawing by itself is a full flash and keeps the radio awake.
+    settings.querySelector("[data-follow-setting]").hidden =
+      !doc || "static" in root.dataset || prefs.family === "eink";
     // A width is offered only if it is visibly wider than the one before it on this
     // screen. The chosen one may not be on offer here (chosen on a larger screen, or the
     // window has shrunk); then the widest that is offered is what the page looks like.
@@ -447,6 +451,28 @@
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "hidden") savePlace();
     });
+
+    // ---- Following a notebook that is being worked on ----
+    // Asks every two seconds whether the file has changed, while the page is in view, and
+    // loads the new version in the same place. A failed ask (the server stopped, the file
+    // half-saved) changes nothing.
+    if (!("static" in root.dataset)) {
+      var seen = null;
+      setInterval(function () {
+        if (!prefs.follow || eink() || document.visibilityState !== "visible") return;
+        fetch(location.pathname, { method: "HEAD", cache: "no-store" })
+          .then(function (response) {
+            var now = response.ok && response.headers.get("ETag");
+            if (!now) return;
+            if (seen && now !== seen) {
+              savePlace();
+              location.reload();
+            }
+            seen = now;
+          })
+          .catch(function () {});
+      }, 2000);
+    }
 
     if (!location.hash) {
       history.scrollRestoration = "manual";

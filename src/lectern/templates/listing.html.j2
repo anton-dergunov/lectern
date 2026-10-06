@@ -13,7 +13,9 @@
 {% if description %}
 <p class="lede">{{ description }}</p>
 {% endif %}
-{% if roots is defined %}
+{% if roots is defined and not roots %}
+<p class="empty">No folders are being served. On your Mac, run <code>lectern add</code> in a folder you want to read.</p>
+{% elif roots is defined %}
 <ul class="rows">
 {% for root in roots %}
 <li><a class="row" href="{{ root.href }}"><span class="row-title">{{ root.name }}</span></a></li>

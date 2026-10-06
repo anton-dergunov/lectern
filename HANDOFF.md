@@ -2,13 +2,13 @@
 
 ## State on 2026-10-06
 
-**Milestones 1 to 5 are built.** Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all of it is folded in. The repository is public at `anton-dergunov/lectern`; milestones 1 to 4 are pushed and tagged `v0.1.0`.
+**Milestones 1 to 6 are built.** Only milestone 7 (cleanup in the other repositories) is left. Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all of it is folded in. The repository is public at `anton-dergunov/lectern`; milestones 1 to 4 are tagged `v0.1.0`, milestone 5 is pushed, and the version is 0.2.0.
 
-**Milestone 4** is published on the lectern side. In ml-explorations the changes are made and **uncommitted, for Anton to commit and push**: `lectern.toml`, the new build steps in `.github/workflows/pages.yml` (pinned to `v0.1.0`), and the publishing sections of its README and `CLAUDE.md`. `tools/build_site.py` is still there, to delete once a deploy with lectern has succeeded. The `github-pages` environment only accepts deployments from `main`, so a `workflow_dispatch` on another branch tests the build job and its deploy job is refused; the live site changes only on a push to `main`.
+**ml-explorations is live on lectern** (`https://anton-dergunov.github.io/ml-explorations/`, built by its Pages workflow from the `v0.1.0` tag). Its `tools/build_site.py` can be deleted now. The site gets the bundled fonts and math only after a `v0.2.0` tag and a moved pin.
 
-**Milestone 5 and the bundled fonts are after the tag**, with the version raised to 0.2.0: sites pinned to `v0.1.0` get neither until a `v0.2.0` tag exists and their pin is moved. Verified on the Mac only: unit and golden tests, `scripts/check_reader.py` in Chromium and WebKit, and screenshots of the two real notebooks the milestone names (math in blog-code, a PNG plot in long-tail-multi-label-classification).
+**Milestone 6** is verified on the Mac: unit tests; the browser checks; and each command tried live on spare ports and bound to `127.0.0.1` (reuse of a running server, saved folders picked up and dropped by a running `serve --all`, `--qr`, the agent installed, seen running with `launchctl print`, and uninstalled again, and `lectern lab` reaching Jupyter's password page and refusing API calls without it). **Nothing is left installed or configured**: no agent, no `~/.config/lectern`. Not yet tried by Anton, and not tried at all: the Tailscale route.
 
-**Next step:** Anton commits both repositories and looks at the fonts on Android and the Boox; then milestone 6 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
+**Next step:** Anton tries milestones 5 and 6 on his devices; then milestone 7 (section 11, "Integration"), which changes agent-memory-eval and is his to approve. Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
 
 Where the build differs from the design below (the design text is left as written):
 
@@ -58,6 +58,17 @@ Static build (milestone 4):
 - **`--theme`** is `solarized`, `plain` or `eink`: the colours a first-time visitor gets. The reader's settings work on the built site as they do when served.
 - The link guard and the start page are server-only; a built page carries `data-static` and skips them. The CSP is a `<meta>` there, and built pages were checked to load their own scripts and styles from `file://` under it.
 - Ruff is told to skip `*.md` and `tests/fixtures`: its formatter rewrites Python snippets in this file and the code cells of fixture notebooks.
+
+Launch polish (milestone 6):
+
+- **`lectern add` / `remove` / `list`** edit `~/.config/lectern/config.toml` (`LECTERN_CONFIG_DIR` moves it, for tests). `list` is an addition to the design.
+- **`serve --all` follows the file**: `ReaderServer.roots` is a property that looks at the file's mtime at most once a second. A file that does not parse leaves the served folders as they were. `extra_hosts` is followed the same way. A server started with paths does not follow it.
+- **Zero folders is a valid state** (`serve --all` or the agent before anything is added); the front page says to run `lectern add`.
+- **Reuse:** `lectern serve` asks `127.0.0.1:<port>/_ping` first. For a caller on the loopback address `/_ping` also returns each root's path and whether the server follows the settings file; other devices get names only. If lectern answers, the command prints the deep address for a folder inside a served root, or how to get it served, and exits 0.
+- **Agent:** label `com.anton.lectern`, `serve --all`, `RunAtLoad`, `KeepAlive` on unsuccessful exit only (it exits 0 when it finds lectern already running), log in `~/Library/Logs/lectern.log`. `--host` is an addition, so it can be kept to the Mac. No firewall prompt appeared when it was run on `127.0.0.1`; on `0.0.0.0` that is untested.
+- **Lab:** as section 11, with `--port` and `--host` added. Three `local_hostnames` are passed (the `.local` name as given and lowercased, and `localhost`). Checked live: `/login` 200, `/lab` redirects to the login, `/api/contents` 403, a foreign Host 403. JupyterLab logs that `ServerApp.password_required` in the user's own config is a deprecated spelling; that is his file, not ours. **The JupyterLab from the old script is still running on port 8888** (PID 40924 when checked), started with a token; `lectern lab` on the default port will fail until it is stopped.
+- **`--qr`** prints the code before the addresses, so the addresses are what stays on screen.
+- **Follow changes** is a reload, not a swap of `<main>`: every two seconds, while the page is visible, a `HEAD` compares the ETag, and a change saves the reading position and reloads. Simpler than re-running every enhancement on swapped content, and the place is kept either way. Off by default; the setting is absent in the e-ink theme and on built sites.
 
 Things to know when continuing:
 

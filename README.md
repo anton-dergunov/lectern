@@ -59,7 +59,58 @@ Open the first address on the tablet. The second is for devices that cannot reso
 
 If lectern is stopped while a page is open, following a link shows "Lectern is not running" instead of a browser error, and the page carries on by itself once `lectern serve` is running again.
 
-`lectern serve PATH…` serves other directories, each under its own name. `--port` changes the port (default 8642), `--host` the address to listen on, and `--verbose` prints each request.
+`lectern serve PATH…` serves other directories, each under its own name. `--port` changes the port (default 8642), `--host` the address to listen on, `--qr` also shows the address as a QR code (needs `qrencode`), and `--verbose` prints each request.
+
+Running `lectern serve` while lectern is already running does not start a second one. It prints the address of the folder you are in if that is being served, and says how to get it served if not.
+
+With **Show the new version** switched on in a page's settings, the page reloads by itself, in the same place, when the notebook is saved again. It is off by default, and not offered in the e-ink theme.
+
+### Folders you read often
+
+```sh
+lectern add ~/projects/writing/agent-memory-eval    # or just `lectern add` inside it
+lectern list
+lectern remove agent-memory-eval
+lectern serve --all
+```
+
+`serve --all` serves every saved folder, each under its own name, from one address. A folder added or removed while it runs appears or disappears within a second; nothing needs restarting. The list is kept in `~/.config/lectern/config.toml`, which also holds the port.
+
+### Always on
+
+```sh
+lectern agent install
+lectern agent status
+lectern agent uninstall
+```
+
+`agent install` starts `lectern serve --all` now and at every login, so the saved folders can be read whenever the Mac is awake. Its output goes to `~/Library/Logs/lectern.log`. Remember that this puts the saved folders on every network the Mac joins; `lectern agent install --host 127.0.0.1` keeps it to the Mac itself, for use behind Tailscale (below).
+
+### Running a cell
+
+Lectern never runs code. For the rare time something has to be run from the tablet:
+
+```sh
+lectern lab notebooks
+```
+
+starts JupyterLab for that folder on port 8888, using the folder's own `.venv` if it has one. Lab does run code, so it is never started open: it uses the password already set for Jupyter on the Mac, typed once per device, and `lectern lab` refuses to start if there is none (`jupyter server password` sets it).
+
+### Away from home, and full screen on Android
+
+Over plain `http`, Android only offers a shortcut that opens in a browser tab. A proper full-screen app there needs HTTPS, which [Tailscale](https://tailscale.com/) provides without certificates to install:
+
+```sh
+tailscale serve --bg --https=443 http://127.0.0.1:8642
+```
+
+Then add the Mac's Tailscale name to `extra_hosts` in `~/.config/lectern/config.toml`, since lectern only answers to names it knows:
+
+```toml
+extra_hosts = ["your-mac.your-tailnet.ts.net"]
+```
+
+and open `https://your-mac.your-tailnet.ts.net/` on any device signed in to the same Tailscale account. The same address works away from home.
 
 ### Full screen on an iPad
 

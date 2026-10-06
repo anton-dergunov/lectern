@@ -350,6 +350,37 @@ def run(engine_name: str, playwright) -> bool:
             print(f"  note start page not shown from cache  ({str(error).splitlines()[0]})")
             results.append(engine_name == "webkit")
 
+    # ---- A notebook saved again while it is being read ----
+    with tempfile.TemporaryDirectory() as work:
+        notebook = Path(work, "desk", "draft.ipynb")
+        notebook.parent.mkdir()
+        original = (FIXTURES / "long-read.ipynb").read_text()
+        notebook.write_text(original)
+        with LocalServer(notebook.parent) as desk:
+            follower = context.new_page()
+            follower.goto(desk.url("draft.ipynb"))
+            follower.get_by_role("button", name="Reading settings").click()
+            follower.get_by_role("button", name="Show the new version").click()
+            follower.locator("#settings").get_by_role("button", name="Done").click()
+            follower.evaluate("window.scrollTo(0, 4000)")
+            follower.wait_for_timeout(2500)
+            place = follower.evaluate(PLACE)
+            notebook.write_text(original.replace("A shorter remark.", "A remark, revised."))
+            try:
+                expect(follower.get_by_text("A remark, revised.").first).to_be_attached(
+                    timeout=8000
+                )
+                again = follower.evaluate(PLACE)
+                kept = again["cell"] == place["cell"] and abs(again["frac"] - place["frac"]) < 0.05
+                results.append(
+                    check("a saved notebook is shown again, in the same place", kept, again)
+                )
+            except AssertionError:
+                results.append(check("a saved notebook is shown again, in the same place", False))
+            follower.get_by_role("button", name="Reading settings").click()
+            follower.get_by_role("button", name="Stay as it is").click()
+            follower.close()
+
     # ---- A static build, opened straight from the disk ----
     with tempfile.TemporaryDirectory() as site:
         build(FIXTURES, Path(site), SiteOptions(title="Fixtures"))

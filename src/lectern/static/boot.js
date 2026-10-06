@@ -4,7 +4,14 @@
   "use strict";
 
   var KEY = "lectern:prefs";
-  var DEFAULTS = { family: "solarized", mode: "light", size: 19, width: "m", hideCode: false };
+  var DEFAULTS = {
+    family: "solarized",
+    mode: "light",
+    size: 19,
+    width: "m",
+    hideCode: false,
+    follow: false,
+  };
   // The page background of each theme, for the browser and status bar around the page.
   var BAR_COLORS = {
     "solarized-light": "#fdf6e3",

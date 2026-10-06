@@ -21,6 +21,7 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 - **Collapse and expand sections by heading**, working together with the contents list. Cells are rendered one after another with no section wrapper, so this means grouping cells under their heading at render time.
 - **Column width as a free setting.** There are five fixed steps now (narrow, medium, wide, wider, full), and everything shares one column. A slider if the steps turn out too coarse.
 - **A more file-oriented listing.** First impression was that it should show more of the files; after using it, it seemed fine. Left as it is, apart from naming the file on every row.
+- **Leaving folders out.** `lectern serve` in agent-memory-eval also serves its `private/` directory. An ignore list (per folder, or a `.lecternignore`) would let a folder be served without everything in it.
 - **"Continue reading" on the listing**, filled from the saved reading positions (HANDOFF section 9).
 - **Page turns that end on a whole line.** In the e-ink theme a turn moves by a fixed distance, so the last line on the screen can be cut through by the footer; the next page repeats it. Snapping each turn to a line of text would remove that, at the cost of measuring the layout on every turn.
 - **Fonts for e-ink.** Nothing is bundled; the theme uses whatever serif and monospace the tablet has. Decide after seeing it on the device.

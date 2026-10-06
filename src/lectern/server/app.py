@@ -4,14 +4,17 @@ import ipaddress
 import json
 import mimetypes
 import sys
+import threading
+import time
 import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
-from .. import APP_NAME, __version__, library, netinfo
+from .. import APP_NAME, __version__, config, library, netinfo
 from ..cache import RenderCache, RenderError
+from ..config import DEFAULT_PORT
 from ..paths import DOC_SUFFIXES, resolve
 from ..render import render_document
 from ..render.page import (
@@ -23,8 +26,6 @@ from ..render.page import (
     render_page,
     static_url,
 )
-
-DEFAULT_PORT = 8642
 
 CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -56,16 +57,49 @@ class ReaderServer(ThreadingHTTPServer):
         roots: dict[str, Path],
         extra_hosts: tuple[str, ...] = (),
         verbose: bool = False,
+        settings: Path | None = None,
     ) -> None:
         super().__init__(address, ReaderHandler)
-        self.roots = roots
         self.cache = RenderCache(render_document)
         self.verbose = verbose
-        self.hosts = {
-            "localhost",
-            f"{netinfo.local_hostname()}.local".lower(),
-            *(host.lower() for host in extra_hosts),
-        }
+        self._own_hosts = {"localhost", f"{netinfo.local_hostname()}.local".lower()}
+        self._roots = roots
+        self.hosts = self._own_hosts | {host.lower() for host in extra_hosts}
+        # With a settings file, the saved folders are what is served, and the file is
+        # read again whenever it changes: `lectern add` reaches a running server that way,
+        # without the server accepting any request that changes something.
+        self.settings = settings
+        self._settings_stamp: float | None = None
+        self._settings_checked = 0.0
+        self._settings_lock = threading.Lock()
+
+    @property
+    def roots(self) -> dict[str, Path]:
+        if self.settings is not None:
+            self._follow_settings()
+        return self._roots
+
+    def _follow_settings(self) -> None:
+        with self._settings_lock:
+            now = time.monotonic()
+            if now - self._settings_checked < 1:
+                return
+            self._settings_checked = now
+            try:
+                stamp = self.settings.stat().st_mtime
+            except OSError:
+                stamp = 0.0
+            if stamp == self._settings_stamp:
+                return
+            self._settings_stamp = stamp
+            try:
+                saved = config.load(self.settings)
+            except config.ConfigError as error:
+                # A half-edited file: keep serving what was being served.
+                print(f"{APP_NAME}: {error}", file=sys.stderr, flush=True)
+                return
+            self._roots = {name: path for name, path in saved.roots.items() if path.is_dir()}
+            self.hosts = self._own_hosts | {host.lower() for host in saved.extra_hosts}
 
 
 class ReaderHandler(BaseHTTPRequestHandler):
@@ -111,6 +145,11 @@ class ReaderHandler(BaseHTTPRequestHandler):
                 "roots": sorted(self.server.roots),
                 "assets": asset_hash(),
             }
+            # For `lectern serve` on this Mac, to say where a folder is already being
+            # served. Other devices are not told where things are on the disk.
+            if ipaddress.ip_address(self.client_address[0]).is_loopback:
+                ping["paths"] = {name: str(path) for name, path in self.server.roots.items()}
+                ping["saved"] = self.server.settings is not None
             headers = {"Cache-Control": "no-store"}
             self._send(HTTPStatus.OK, json.dumps(ping).encode(), "application/json", headers)
         elif path == "/manifest.webmanifest":
@@ -163,7 +202,13 @@ class ReaderHandler(BaseHTTPRequestHandler):
             self._redirect(f"/{quote(next(iter(roots)))}/")
             return
         links = [Crumb(name, f"/{quote(name)}/") for name in sorted(roots, key=str.lower)]
-        html = render_page("listing.html.j2", title="Lectern", heading="Lectern", roots=links)
+        html = render_page(
+            "listing.html.j2",
+            title="Lectern",
+            heading="Lectern",
+            roots=links,
+            crumbs=[Crumb("Lectern", "/_home")],
+        )
         self._send(HTTPStatus.OK, html.encode(), HTML)
 
     def _under_root(self, raw: str, path: str) -> None:
@@ -276,9 +321,9 @@ class ReaderHandler(BaseHTTPRequestHandler):
             message=message,
             detail=detail,
             retry=retry,
-            crumbs=[Crumb("Lectern", "/_home")]
-            if len(roots) > 1
-            else self._crumbs(next(iter(roots)), []),
+            crumbs=self._crumbs(next(iter(roots)), [])
+            if len(roots) == 1
+            else [Crumb("Lectern", "/_home")],
         )
         headers = {"Retry-After": str(retry)} if retry else {}
         self._send(status, html.encode(), HTML, headers)
@@ -338,5 +383,8 @@ def make_server(
     port: int = DEFAULT_PORT,
     extra_hosts: tuple[str, ...] = (),
     verbose: bool = False,
+    settings: Path | None = None,
 ) -> ReaderServer:
-    return ReaderServer((host, port), roots, extra_hosts, verbose)
+    """`settings` is the file of saved folders to serve and keep following; `roots` is
+    then only what is served until it has been read."""
+    return ReaderServer((host, port), roots, extra_hosts, verbose, settings)

@@ -224,3 +224,71 @@ def test_dropped_connection_prints_nothing(server, capsys):
 
     assert request(server, "/_ping")[0].status == 200
     assert capsys.readouterr().err == ""
+
+
+def test_saved_folders_are_followed_while_running(root: Path, tmp_path: Path):
+    import threading
+    import time
+
+    from lectern import config
+
+    settings = tmp_path / "settings" / "config.toml"
+    server = make_server({}, host="127.0.0.1", port=0, settings=settings)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        # Nothing saved: the front page says so instead of failing.
+        response, body = request(server, "/_home")
+        assert response.status == 200 and "lectern add" in body
+        assert request(server, "/proj/")[0].status == 404
+
+        config.save(
+            config.Config(roots={"proj": root}, extra_hosts=["mac.example.ts.net"]), settings
+        )
+        time.sleep(1.1)
+        assert request(server, "/proj/notebooks/sample.ipynb")[0].status == 200
+        assert request(server, "/proj/", headers={"Host": "mac.example.ts.net"})[0].status == 200
+
+        # A file caught half-edited leaves things as they were.
+        settings.write_text("[roots\n")
+        time.sleep(1.1)
+        assert request(server, "/proj/")[0].status == 200
+
+        config.save(config.Config(), settings)
+        time.sleep(1.1)
+        assert request(server, "/proj/")[0].status == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_ping_tells_only_this_machine_where_folders_are(server, root: Path):
+    _, body = request(server, "/_ping")
+    ping = json.loads(body)
+    assert ping["paths"] == {"proj": str(root)} and ping["saved"] is False
+
+    # The same request as it looks arriving from another device.
+    from lectern.server.app import ReaderHandler
+
+    seen = {}
+    original = ReaderHandler._send
+
+    def as_remote(self, status, body, content_type, headers=None):
+        seen["body"] = body
+        original(self, status, body, content_type, headers)
+
+    handler_address = (
+        ReaderHandler.client_address if hasattr(ReaderHandler, "client_address") else None
+    )
+    try:
+        ReaderHandler._send = as_remote
+        ReaderHandler.client_address = property(
+            lambda self: ("192.168.1.50", 50000), lambda self, v: None
+        )
+        request(server, "/_ping")
+    finally:
+        ReaderHandler._send = original
+        del ReaderHandler.client_address
+        if handler_address is not None:
+            ReaderHandler.client_address = handler_address
+    remote = json.loads(seen["body"])
+    assert "paths" not in remote and remote["roots"] == ["proj"]

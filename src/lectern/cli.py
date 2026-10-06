@@ -2,30 +2,49 @@
 
 import argparse
 import errno
+import json
+import os
+import shutil
+import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
+from urllib.parse import quote
 
-from . import APP_NAME, __version__, library, netinfo
+from . import APP_NAME, __version__, config, library, netinfo
 
 
-def _roots(paths: list[str], parser: argparse.ArgumentParser) -> dict[str, Path]:
+def _plural(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _fail(message: object) -> int:
+    print(f"{APP_NAME}: {message}", file=sys.stderr)
+    return 1
+
+
+def _address(port: int) -> str:
+    return f"http://{netinfo.local_hostname()}.local:{port}/"
+
+
+# ---- serve ----
+
+
+def _roots(paths: list[str]) -> dict[str, Path]:
     """Each directory under its own name, which is the first segment of its URLs."""
     roots: dict[str, Path] = {}
     for given in paths or ["."]:
         path = Path(given).expanduser().resolve()
         if not path.is_dir():
-            parser.error(f"{given} is not a directory")
-        name = path.name
-        if not name or name.startswith((".", "_")):
-            parser.error(f"cannot serve {path}: its name must not be empty or start with . or _")
+            raise config.ConfigError(f"{given} is not a directory")
+        name = config.root_name(path)
         if name in roots:
-            parser.error(f"{roots[name]} and {path} are both named {name}; serve one of them")
+            raise config.ConfigError(
+                f"{roots[name]} and {path} are both named {name}; serve one of them"
+            )
         roots[name] = path
     return roots
-
-
-def _plural(n: int, noun: str) -> str:
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
 
 
 def _summary(roots: dict[str, Path], port: int) -> str:
@@ -35,29 +54,90 @@ def _summary(roots: dict[str, Path], port: int) -> str:
         serving.append(
             f"{name} ({_plural(notebooks, 'notebook')}, {_plural(pages, 'markdown file')})"
         )
-    lines = [f"{APP_NAME}  serving {', '.join(serving)}"]
-    lines.append(f"  http://{netinfo.local_hostname()}.local:{port}/")
+    if not serving:
+        lines = [f"{APP_NAME}  no folders saved yet: add one with `{APP_NAME} add PATH`"]
+    elif len(serving) == 1:
+        lines = [f"{APP_NAME}  serving {serving[0]}"]
+    else:
+        lines = [f"{APP_NAME}  serving", *(f"    {line}" for line in serving)]
+    lines.append(f"  {_address(port)}")
     if ip := netinfo.lan_ip():
         lines.append(f"  {f'http://{ip}:{port}/':<34}(fallback)")
     return "\n".join(lines)
 
 
-def _serve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+def _qr(url: str) -> None:
+    """The address as a QR code in the terminal, for a device with a camera."""
+    qrencode = shutil.which("qrencode")
+    if not qrencode:
+        print("  (no QR code: `qrencode` is not installed; `brew install qrencode`)")
+        return
+    sys.stdout.flush()
+    subprocess.run([qrencode, "-t", "ANSIUTF8", "-m", "2", url], check=False)
+
+
+def _running(port: int) -> dict | None:
+    """What a lectern already answering on this Mac's port says about itself."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/_ping", timeout=1) as response:
+            ping = json.load(response)
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    return ping if isinstance(ping, dict) and ping.get("app") == APP_NAME else None
+
+
+def _already_running(ping: dict, wanted: dict[str, Path] | None, port: int) -> int:
+    """Instead of a second server: say where to read, or how to get a folder served."""
+    served = {name: Path(path) for name, path in ping.get("paths", {}).items()}
+    print(f"{APP_NAME}  already running on port {port}", end="")
+    print(f", serving {', '.join(sorted(served))}" if served else ", serving nothing yet")
+    missing = []
+    for path in (wanted or {}).values():
+        inside = next((n for n, root in served.items() if path.is_relative_to(root)), None)
+        if inside is None:
+            missing.append(path)
+            continue
+        rel = path.relative_to(served[inside]).as_posix()
+        tail = "" if rel == "." else quote(rel) + "/"
+        print(f"  {_address(port)}{quote(inside)}/{tail}")
+    for path in missing:
+        if ping.get("saved"):
+            print(f"  {path} is not served. To add it: {APP_NAME} add {path}")
+        else:
+            print(f"  {path} is not served. Stop the running {APP_NAME}, or pass --port.")
+    if wanted is None:
+        print(f"  {_address(port)}")
+    return 0
+
+
+def _serve(args: argparse.Namespace) -> int:
     from .server.app import make_server
 
-    roots = _roots(args.paths, parser)
+    saved = config.load()
+    port = args.port or saved.port
+    if args.all and args.paths:
+        return _fail("give folders or --all, not both")
+    roots = saved.roots if args.all else _roots(args.paths)
+
+    if ping := _running(port):
+        return _already_running(ping, None if args.all else roots, port)
     try:
-        server = make_server(roots, args.host, args.port, verbose=args.verbose)
+        server = make_server(
+            roots,
+            args.host,
+            port,
+            tuple(saved.extra_hosts),
+            verbose=args.verbose,
+            settings=config.config_path() if args.all else None,
+        )
     except OSError as error:
         if error.errno != errno.EADDRINUSE:
             raise
-        print(
-            f"{APP_NAME}: port {args.port} is already in use. Is lectern running in another "
-            "terminal? Stop it, or pass --port.",
-            file=sys.stderr,
-        )
-        return 1
-    print(_summary(roots, args.port))
+        return _fail(f"port {port} is in use by something else. Stop it, or pass --port.")
+    # The code first and the addresses after it, so they are what is left on the screen.
+    if args.qr:
+        _qr(_address(port))
+    print(_summary(server.roots, port))
     print("  Ctrl-C to stop", flush=True)
     try:
         server.serve_forever()
@@ -68,8 +148,92 @@ def _serve(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     return 0
 
 
-def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
-    from .build import BuildError, build, load_options
+# ---- saved folders ----
+
+
+def _print_roots(saved: config.Config) -> None:
+    if not saved.roots:
+        print("  no folders saved")
+    width = max((len(name) for name in saved.roots), default=0)
+    for name, path in sorted(saved.roots.items()):
+        note = "" if path.is_dir() else "   (missing)"
+        print(f"  {name:<{width}}  {path}{note}")
+
+
+def _add(args: argparse.Namespace) -> int:
+    saved, name = config.add_root(Path(args.path), args.name)
+    print(f"{APP_NAME}  saved {name}. `{APP_NAME} serve --all` serves:")
+    _print_roots(saved)
+    ping = _running(saved.port)
+    if ping and ping.get("saved"):
+        print(f"  The running {APP_NAME} picks this up within a second:")
+        print(f"  {_address(saved.port)}{quote(name)}/")
+    return 0
+
+
+def _remove(args: argparse.Namespace) -> int:
+    saved = config.remove_root(args.name)
+    print(f"{APP_NAME}  removed {args.name}. Still saved:")
+    _print_roots(saved)
+    return 0
+
+
+def _list(args: argparse.Namespace) -> int:
+    saved = config.load()
+    print(f"{APP_NAME}  saved folders ({config.config_path()}):")
+    _print_roots(saved)
+    return 0
+
+
+# ---- the login agent ----
+
+
+def _agent(args: argparse.Namespace) -> int:
+    from . import agent
+
+    if args.action == "install":
+        saved = config.load()
+        path = agent.install(args.host)
+        print(f"{APP_NAME}  starts at login from now on, serving the saved folders:")
+        _print_roots(saved)
+        print(f"  {_address(saved.port)}")
+        print(f"  agent: {path}")
+        print(f"  log:   {agent.log_path()}")
+    elif args.action == "uninstall":
+        removed = agent.uninstall()
+        print(f"{APP_NAME}  " + ("no longer starts at login" if removed else "was not installed"))
+    else:
+        state = agent.status()
+        saved = config.load()
+        ping = _running(saved.port)
+        print(f"{APP_NAME}  agent: {state}")
+        answering = (
+            f"answering, serving {', '.join(ping['roots']) or 'nothing yet'}" if ping else ""
+        )
+        print(f"  port {saved.port}: {answering or 'nothing answering'}")
+    return 0
+
+
+# ---- JupyterLab ----
+
+
+def _lab(args: argparse.Namespace) -> int:
+    from . import lab
+
+    saved = config.load()
+    directory = Path(args.dir).expanduser().resolve()
+    argv = lab.command(directory, saved, args.port, args.host)
+    port = args.port or saved.lab_port
+    print(f"{APP_NAME}  JupyterLab for {directory.name}, behind Jupyter's password")
+    print(f"  http://{netinfo.local_hostname()}.local:{port}/lab", flush=True)
+    os.execv(argv[0], argv)
+
+
+# ---- build ----
+
+
+def _build(args: argparse.Namespace) -> int:
+    from .build import build, load_options
 
     src = Path(args.src).expanduser().resolve()
     flags = {
@@ -85,12 +249,8 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             "exclude",
         )
     }
-    try:
-        options = load_options(src, flags)
-        built = build(src, Path(args.output).expanduser(), options, clean=args.clean)
-    except BuildError as error:
-        print(f"{APP_NAME}: {error}", file=sys.stderr)
-        return 1
+    options = load_options(src, flags)
+    built = build(src, Path(args.output).expanduser(), options, clean=args.clean)
     for line in built.skipped:
         print(f"{APP_NAME}: skipped {line}", file=sys.stderr)
     print(
@@ -100,9 +260,7 @@ def _build(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    from .server.app import DEFAULT_PORT
-
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=APP_NAME, description="Read notebooks and markdown on a tablet."
     )
@@ -111,14 +269,54 @@ def main(argv: list[str] | None = None) -> int:
 
     serve = commands.add_parser(
         "serve",
-        help="serve directories to read from another device",
-        description="Serve the notebooks and markdown files under each PATH, read-only.",
+        help="serve folders to read from another device",
+        description="Serve the notebooks and markdown files under each PATH, read-only. "
+        "If lectern is already running, say where to read instead of starting again.",
     )
     serve.add_argument("paths", nargs="*", metavar="PATH", help="default: the current directory")
-    serve.add_argument("--port", type=int, default=DEFAULT_PORT, help="default: %(default)s")
+    serve.add_argument("--all", action="store_true", help="serve the saved folders instead")
+    serve.add_argument("--port", type=int, help=f"default: {config.DEFAULT_PORT}, or as saved")
     serve.add_argument("--host", default="0.0.0.0", help="address to listen on")
+    serve.add_argument("--qr", action="store_true", help="also show the address as a QR code")
     serve.add_argument("--verbose", action="store_true", help="print each request")
     serve.set_defaults(run=_serve)
+
+    add = commands.add_parser(
+        "add",
+        help="save a folder, to serve with `serve --all` or the login agent",
+        description="Save a folder. A lectern running with --all, or from login, starts "
+        "serving it within a second.",
+    )
+    add.add_argument("path", nargs="?", default=".", metavar="PATH", help="default: .")
+    add.add_argument("--name", help="the name in its address; default: the folder's name")
+    add.set_defaults(run=_add)
+
+    remove = commands.add_parser("remove", help="forget a saved folder")
+    remove.add_argument("name", metavar="NAME")
+    remove.set_defaults(run=_remove)
+
+    commands.add_parser("list", help="show the saved folders").set_defaults(run=_list)
+
+    agent = commands.add_parser(
+        "agent",
+        help="start lectern at login, serving the saved folders",
+        description="Install, remove or check the launchd agent that runs "
+        "`lectern serve --all` from login onwards.",
+    )
+    agent.add_argument("action", choices=["install", "uninstall", "status"])
+    agent.add_argument("--host", help="address the agent listens on; default: all")
+    agent.set_defaults(run=_agent)
+
+    lab = commands.add_parser(
+        "lab",
+        help="run JupyterLab for a folder, behind its password",
+        description="Start JupyterLab for DIR so a cell can be run from another device. "
+        "Refuses unless Jupyter has a password set on this Mac.",
+    )
+    lab.add_argument("dir", nargs="?", default=".", metavar="DIR", help="default: .")
+    lab.add_argument("--port", type=int, help=f"default: {config.DEFAULT_LAB_PORT}, or as saved")
+    lab.add_argument("--host", default="0.0.0.0", help="address to listen on")
+    lab.set_defaults(run=_lab)
 
     build = commands.add_parser(
         "build",
@@ -143,6 +341,16 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--exclude", action="append", metavar="GLOB", help="leave these out")
     build.add_argument("--clean", action="store_true", help="empty the output directory first")
     build.set_defaults(run=_build)
+    return parser
 
-    args = parser.parse_args(argv)
-    return args.run(args, parser)
+
+def main(argv: list[str] | None = None) -> int:
+    from .agent import AgentError
+    from .build import BuildError
+    from .lab import LabError
+
+    args = _parser().parse_args(argv)
+    try:
+        return args.run(args)
+    except (config.ConfigError, BuildError, AgentError, LabError) as error:
+        return _fail(error)
