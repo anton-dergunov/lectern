@@ -11,10 +11,11 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
 - long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
-- reading settings saved per device: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
+- reading settings saved per device, starting from sizes that suit a tablet, a phone, a desktop or an e-ink reader: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
 - an e-ink theme, chosen by itself on e-ink readers: black on white, nothing animated, and pages turned with buttons, a tap on either edge of the screen, or the page keys instead of scrolling;
 - a top bar that gets out of the way while you read down and comes back when you scroll up;
-- a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars.
+- a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars;
+- the same pages as a static site, with `lectern build`, to publish committed notebooks on GitHub Pages or any other host.
 
 Notebooks are shown as they were last saved, including ones you have not committed. Save the notebook and reload the page to see the change.
 
@@ -62,6 +63,41 @@ If lectern is stopped while a page is open, following a link shows "Lectern is n
 ### Full screen on an iPad
 
 Open the address once in **Safari**, then Share → Add to Home Screen. The icon opens lectern full screen. The icon is tied to the address, so keep the port the same.
+
+### Publishing as a static site
+
+```sh
+lectern build . -o _site
+```
+
+writes every notebook under the current directory as a page, an index of them, and the stylesheets and scripts they need, into `_site`. The pages look and behave as they do when served, settings included, and open from any static host or straight from the disk.
+
+Markdown files become pages only when a notebook links to them, so a repository's README and working notes are not published by accident; `--markdown all` builds every one, `--markdown none` builds none. Links to other files in the repository (scripts, data) point at the repository when it is known.
+
+Settings can live in a `lectern.toml` at the top of the directory instead of on the command line:
+
+```toml
+title = "ML Explorations"
+description = "Small self-contained experiments, each one written up as a notebook."
+repo_url = "https://github.com/you/ml-explorations"
+exclude = ["tools/*"]
+```
+
+Also available: `branch` (for the links to the repository, default `main`), `theme` (`solarized`, `plain` or `eink`: the colours a first-time visitor sees), `markdown` and `include`. `include` and `exclude` are patterns matched against each path from the top of the directory, where `*` also matches `/`. In GitHub Actions the repository and branch are taken from the environment, so neither needs setting there.
+
+`--clean` empties the output directory first, and only if an earlier build filled it.
+
+To publish from GitHub Actions, replace the build steps of a Pages workflow with:
+
+```yaml
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Render notebooks
+        run: uvx --from "git+https://github.com/anton-dergunov/lectern@v0.1.0" lectern build . -o _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+```
 
 ## Development
 

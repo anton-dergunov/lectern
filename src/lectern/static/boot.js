@@ -20,19 +20,39 @@
   var SIZE = { min: 14, max: 26 };
   var dark = window.matchMedia("(prefers-color-scheme: dark)");
 
+  // What a device starts with before anything is chosen on it. The same 19px that suits a
+  // tablet held in the hands is large on a 13-inch e-ink reader, a phone and a monitor.
+  function deviceDefaults() {
+    var defaults = {};
+    for (var name in DEFAULTS) defaults[name] = DEFAULTS[name];
+    // A published site can name the colours it wants to open in.
+    var family = document.documentElement.dataset.defaultFamily;
+    if (family) defaults.family = family;
+    var eink = EINK_DEVICE.test(navigator.userAgent) || window.matchMedia("(monochrome)").matches;
+    var phone = Math.min(screen.width, screen.height) < 500;
+    var desktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    if (eink) {
+      defaults.family = "eink";
+      defaults.size = 16;
+    } else if (phone) {
+      defaults.size = 16;
+    } else if (desktop) {
+      defaults.size = 17;
+      defaults.width = "w";
+    }
+    return defaults;
+  }
+
   function read() {
     var saved = null;
     try {
       saved = JSON.parse(localStorage.getItem(KEY));
     } catch (e) {}
-    if (!saved || typeof saved !== "object") {
-      // First visit: an e-ink screen starts in the theme made for it.
-      var eink = EINK_DEVICE.test(navigator.userAgent) || window.matchMedia("(monochrome)").matches;
-      saved = eink ? { family: "eink" } : {};
-    }
+    if (!saved || typeof saved !== "object") saved = {};
+    var defaults = deviceDefaults();
     var prefs = {};
     for (var name in DEFAULTS) {
-      prefs[name] = typeof saved[name] === typeof DEFAULTS[name] ? saved[name] : DEFAULTS[name];
+      prefs[name] = typeof saved[name] === typeof DEFAULTS[name] ? saved[name] : defaults[name];
     }
     if (FAMILIES.indexOf(prefs.family) < 0) prefs.family = DEFAULTS.family;
     if (["light", "dark", "system"].indexOf(prefs.mode) < 0) prefs.mode = DEFAULTS.mode;

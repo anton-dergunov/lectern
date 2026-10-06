@@ -13,6 +13,12 @@ STATIC = PACKAGE / "static"
 
 THEME_COLOR = "#fdf6e3"
 
+# No inline or third-party scripts, whatever a notebook's HTML output or markdown contains.
+# Sent as a header by the server and written into each page of a static build.
+CSP = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+)
+
 _env = Environment(
     loader=FileSystemLoader(TEMPLATES),
     autoescape=select_autoescape(default=True),
@@ -42,7 +48,8 @@ def static_url() -> str:
     return f"/_static/{asset_hash()}"
 
 
-def render_page(template: str, **context) -> str:
+def render_page(template: str, static: str | None = None, **context) -> str:
+    """`static` is where the assets are: the server's hashed path unless a build says otherwise."""
     return _env.get_template(template).render(
-        static=static_url(), theme_color=THEME_COLOR, **context
+        static=static_url() if static is None else static, theme_color=THEME_COLOR, **context
     )

@@ -1,7 +1,10 @@
 <!doctype html>
-<html lang="en" data-theme="solarized-light" data-width="m">
+<html lang="en" data-theme="solarized-light" data-width="m"{% if static_site %} data-static{% endif %}{% if default_family %} data-default-family="{{ default_family }}"{% endif %}>
 <head>
 <meta charset="utf-8">
+{% if csp %}
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+{% endif %}
 <title>{{ title }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,14 +14,16 @@
 <meta name="theme-color" content="{{ theme_color }}">
 <meta name="format-detection" content="telephone=no">
 {% block head %}{% endblock %}
+{% if not static_site %}
 <link rel="manifest" href="/manifest.webmanifest">
+{% endif %}
 <link rel="apple-touch-icon" sizes="180x180" href="{{ static }}/icons/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="{{ static }}/icons/icon.svg">
-<link rel="stylesheet" href="{{ static }}/themes.css">
-<link rel="stylesheet" href="{{ static }}/reader.css">
-<link rel="stylesheet" href="{{ static }}/pygments.css">
-<script src="{{ static }}/boot.js"></script>
-<script src="{{ static }}/reader.js" defer></script>
+<link rel="stylesheet" href="{{ static }}/themes.css{{ version }}">
+<link rel="stylesheet" href="{{ static }}/reader.css{{ version }}">
+<link rel="stylesheet" href="{{ static }}/pygments.css{{ version }}">
+<script src="{{ static }}/boot.js{{ version }}"></script>
+<script src="{{ static }}/reader.js{{ version }}" defer></script>
 </head>
 <body>
 {% block body %}
@@ -83,7 +88,7 @@
         <button type="button" data-size-step="1" aria-label="Larger text">+</button>
       </div>
     </section>
-    <section class="setting">
+    <section class="setting" data-width-setting>
       <h3>Column width</h3>
       <div class="choice">
         <button type="button" data-pref="width" data-value="n">Narrow</button>

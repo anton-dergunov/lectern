@@ -12,9 +12,13 @@ Needs the browsers once: `uv run --group shots playwright install chromium webki
 
 import argparse
 import sys
+import tempfile
+from pathlib import Path
 
 from _local import FIXTURES, LocalServer
 from playwright.sync_api import Page, expect, sync_playwright
+
+from lectern.build import SiteOptions, build
 
 ENGINES = ["chromium", "webkit"]
 
@@ -26,6 +30,9 @@ PLACE = """() => {
     if (box.bottom > line) return {cell: cell.id, frac: (line - box.top) / box.height};
   }
 }"""
+
+
+FONT_SIZE = "getComputedStyle(document.documentElement).fontSize"
 
 
 def settle(page: Page) -> None:
@@ -50,6 +57,11 @@ def run(engine_name: str, playwright) -> bool:
     results: list[bool] = []
     browser = getattr(playwright, engine_name).launch()
     context = browser.new_context(viewport={"width": 820, "height": 1180})
+    # A test browser looks like a desktop; start from what a tablet starts with instead.
+    context.add_init_script(
+        """if (!localStorage.getItem('lectern:prefs'))
+             localStorage.setItem('lectern:prefs', '{"size": 19, "width": "m"}')"""
+    )
     page = context.new_page()
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -76,11 +88,20 @@ def run(engine_name: str, playwright) -> bool:
         same = after["cell"] == before["cell"] and abs(after["frac"] - before["frac"]) < 0.02
         results.append(check("same place after a reload", same, f"{before} -> {after}"))
 
+        column = "document.querySelector('.cell.md p').getBoundingClientRect().width"
+        column_before = page.evaluate(column)
         page.get_by_role("button", name="Reading settings").click()
         for _ in range(3):
             page.get_by_label("Larger text").click()
         size = page.evaluate("getComputedStyle(document.documentElement).fontSize")
         results.append(check("text size follows the setting", size == "22px", size))
+        column_after = page.evaluate(column)
+        unchanged = column_before == column_after == 700
+        results.append(
+            check(
+                "and leaves the column as wide as it was", unchanged, (column_before, column_after)
+            )
+        )
         resized = page.evaluate(PLACE)
         same = resized["cell"] == after["cell"] and abs(resized["frac"] - after["frac"]) < 0.03
         results.append(check("same place after a text-size change", same, f"{after} -> {resized}"))
@@ -153,12 +174,11 @@ def run(engine_name: str, playwright) -> bool:
         )
         page.get_by_role("button", name="Reading settings").click()
         offered = page.locator("[data-pref=width]:visible").all_inner_texts()
-        # The text is at 22 px here, so Medium already fills this screen: the steps beyond
-        # it would change nothing and are left out.
+        # Wide already fills this screen, so the steps beyond it are left out.
         results.append(
             check(
                 "widths that change nothing are not offered",
-                offered == ["Narrow", "Medium"],
+                offered == ["Narrow", "Medium", "Wide"],
                 offered,
             )
         )
@@ -231,11 +251,28 @@ def run(engine_name: str, playwright) -> bool:
         results.append(
             check("an e-ink device starts in the e-ink theme", detected == "eink", detected)
         )
+        size = first_visit.evaluate(FONT_SIZE)
+        results.append(check("with smaller text", size == "16px", size))
         reader.close()
+
+        pocket = browser.new_context(viewport={"width": 390, "height": 844})
+        phone = pocket.new_page()
+        phone.goto(long_read)
+        size = phone.evaluate(FONT_SIZE)
+        results.append(check("a phone starts with smaller text", size == "16px", size))
+        phone.get_by_role("button", name="Reading settings").click()
+        no_choice = not phone.locator("[data-width-setting]").is_visible()
+        results.append(check("and is not asked for a column width", no_choice))
+        pocket.close()
 
         wide = browser.new_context(viewport={"width": 1440, "height": 900})
         desktop = wide.new_page()
         desktop.goto(long_read)
+        start = (
+            desktop.evaluate(FONT_SIZE),
+            desktop.evaluate("document.documentElement.dataset.width"),
+        )
+        results.append(check("a desktop starts at 17 px and wide", start == ("17px", "w"), start))
         desktop.get_by_role("button", name="Reading settings").click()
         offered = desktop.locator("[data-pref=width]:visible").all_inner_texts()
         results.append(check("a desktop is offered all five widths", len(offered) == 5, offered))
@@ -287,6 +324,25 @@ def run(engine_name: str, playwright) -> bool:
             # server stopped it shows its own error instead. Reported, not counted.
             print(f"  note start page not shown from cache  ({str(error).splitlines()[0]})")
             results.append(engine_name == "webkit")
+
+    # ---- A static build, opened straight from the disk ----
+    with tempfile.TemporaryDirectory() as site:
+        build(FIXTURES, Path(site), SiteOptions(title="Fixtures"))
+        blocked: list[str] = []
+        local = context.new_page()
+        local.on("pageerror", lambda error: errors.append(str(error)))
+        local.on("console", lambda m: blocked.append(m.text) if m.type == "error" else None)
+        local.goto(Path(site, "index.html").as_uri())
+        local.get_by_role("link", name="A long read").click()
+        opened = local.url.endswith("/long-read.html") and local.locator("main.doc").is_visible()
+        results.append(check("built pages open from the disk and link to each other", opened))
+        results.append(check("with their styles", local.evaluate(FONT_SIZE) == "19px"))
+        local.get_by_role("button", name="Reading settings").click()
+        local.get_by_role("button", name="Dark", exact=True).click()
+        results.append(check("and their settings", theme(local) == "solarized-dark", theme(local)))
+        local.get_by_role("button", name="Light", exact=True).click()
+        results.append(check("nothing blocked by the page's own policy", not blocked, blocked))
+        local.close()
 
     results.append(check("no script errors", not errors, errors))
     browser.close()

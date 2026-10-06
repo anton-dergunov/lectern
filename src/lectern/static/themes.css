@@ -156,11 +156,13 @@
   --ansi-cyan: #000000;
 }
 
-/* The text size is set by boot.js as a pixel value; everything else is in rem and follows.
-   One column width for prose, code, outputs and tables alike. */
-:root { --size: 19px; --measure: 36rem; }
-[data-width="n"] { --measure: 31rem; }
-[data-width="m"] { --measure: 36rem; }
-[data-width="w"] { --measure: 42rem; }
-[data-width="x"] { --measure: 54rem; }
+/* The text size is set by boot.js as a pixel value; type and spacing are in rem and follow.
+   The column, one for prose, code, outputs and tables alike, is in pixels so that it does
+   not: changing the text size must not also change how wide the page is. reader.js has
+   the same numbers, to know which steps make a difference on the current screen. */
+:root { --size: 19px; --measure: 700px; }
+[data-width="n"] { --measure: 600px; }
+[data-width="m"] { --measure: 700px; }
+[data-width="w"] { --measure: 820px; }
+[data-width="x"] { --measure: 1040px; }
 [data-width="f"] { --measure: 100vw; }

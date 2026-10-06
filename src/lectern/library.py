@@ -3,9 +3,10 @@
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
 from .paths import DOC_SUFFIXES
@@ -155,11 +156,22 @@ def _modified(mtime: float) -> str:
     return f"{when.day} {when:%b %Y}"
 
 
-def listing(top: Path) -> Listing:
-    """Everything readable under `top`, grouped by directory, with links relative to it."""
+def _source_href(rel: PurePosixPath) -> str:
+    return quote(str(rel))
+
+
+def listing(
+    top: Path,
+    paths: list[Path] | None = None,
+    href: Callable[[PurePosixPath], str] = _source_href,
+) -> Listing:
+    """Everything readable under `top`, grouped by directory, with links relative to it.
+
+    A static build passes the documents it chose and where each one's page is.
+    """
     groups: dict[tuple[str, ...], Group] = {}
     entries: list[Entry] = []
-    for path in discover(top):
+    for path in discover(top) if paths is None else paths:
         rel = path.relative_to(top)
         try:
             description = describe(path)
@@ -167,7 +179,7 @@ def listing(top: Path) -> Listing:
         except OSError:  # deleted between the walk and the read
             continue
         entry = Entry(
-            href=quote(rel.as_posix()),
+            href=href(PurePosixPath(rel.as_posix())),
             path=rel.as_posix(),
             name=rel.name,
             title=description.title,

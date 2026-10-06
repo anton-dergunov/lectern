@@ -2,9 +2,11 @@
 
 ## State on 2026-10-06
 
-**Milestones 1, 2 and 3 are built.** Anton tried milestones 1 and 2 on the iPad and the desktop; his spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt` and `feedback2.txt`, and both rounds are folded in. Milestone 3 (e-ink) is verified on the Mac only, in Chromium and WebKit through `scripts/check_reader.py` and screenshots at a tablet-sized viewport. **No e-ink device has seen it yet**, and three parts of milestone 3 wait for that session: the full-screen route (decision 12), whether to bundle fonts, and tuning by eye. agent-memory-eval and ml-explorations are untouched.
+**Milestones 1 to 3 are built and used; milestone 4 is built but not published.** Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all three rounds are folded in. The repository is public at `anton-dergunov/lectern` with milestones 1 to 3 pushed.
 
-**Next step:** a reading session on the e-ink tablet (and the Android phone), then milestone 4 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
+Milestone 4, `lectern build`, is verified on the Mac: unit tests, a build of ml-explorations into a scratch directory (the mem0 page is 69 KB against the old 351 KB), and the built pages opened from `file://` in Chromium and WebKit by `scripts/check_reader.py`. **Still to do for milestone 4, all of it outward-facing and waiting for Anton:** push, tag `v0.1.0`, then in ml-explorations add `lectern.toml`, replace the build steps in `pages.yml` (section 11), and run the workflow on a branch. ml-explorations and agent-memory-eval are untouched.
+
+**Next step:** those publishing steps, then milestone 5 (section 13). Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
 
 Where the build differs from the design below (the design text is left as written):
 
@@ -25,7 +27,8 @@ Reading (milestone 2 and the feedback):
 - **Five themes, not two:** Solarized light and dark, black-and-white light and dark, plus "Follow system", and E-ink. Stored as `family` (`solarized`, `plain`, `eink`) and `mode`; `data-theme` is `solarized-light`, `solarized-dark`, `plain-light`, `plain-dark` or `eink`. This replaces decision 9's pair.
 - **E-ink (milestone 3):** pure black on white with borders instead of tints, syntax told apart by weight, slant and underline, body weight 500, no transitions or animations, the top bar fixed in place, and code wrapped instead of scrolled sideways. A footer turns pages (Previous, "3 / 29", Next); so do taps on the left and right 30% of the screen and PageUp, PageDown, the arrow keys and space. A page turn is the screen height less the bar, the footer and two lines, applied instantly. First visit picks the theme from the user agent (BOOX, Onyx, Kindle, Kobo, PocketBook and others) or `(monochrome)`. Follow-changes does not exist yet, so there is nothing to hide for it.
 - **Text size is a pixel stepper** (14 to 26, default 19), not S/M/L/XL; everything else is in rem and follows.
-- **One column width for everything.** Prose, code, outputs and tables share the column; the design's wider code (to fit 88 columns unscrolled) looked unbalanced to Anton, as it does not in VS Code. The width is a setting with five steps: narrow 31rem, medium 36rem (default), wide 42rem, wider 54rem, full. At medium, code fits about 78 characters and longer lines scroll inside their block. Steps that would look the same as the one before on the current screen are not offered.
+- **One column width for everything, in pixels.** Prose, code, outputs and tables share the column; the design's wider code (to fit 88 columns unscrolled) looked unbalanced to Anton, as it does not in VS Code. The width is a setting with five steps: narrow 600px, medium 700px, wide 820px, wider 1040px, full. It was in rem at first, which made the text-size setting change the column too; Anton read that as a bug, so the column is now independent of the text size. At medium, 14px code fits about 80 characters and longer lines scroll inside their block. A step is offered only if the one before it is under 92% of the screen, so steps that change nothing or next to nothing are left out, and on a phone the whole setting is hidden.
+- **First-visit defaults depend on the device** (`boot.js`): e-ink 16px, a phone 16px, a desktop (hover and a fine pointer) 17px and wide, anything else (a tablet) 19px and medium. These are Anton's preferences on his four devices. A device keeps what it has once any setting is changed on it.
 - **Cell numbers:** each code cell shows `[n]`, its execution count, or `#n` when it was never run, where n counts code cells only (the first code cell is 1 whatever precedes it, as a run from the top would number it). Markdown cells are not numbered. In the left margin where the screen has one, otherwise beside Show/Hide.
 - **Top bar** hides while scrolling down and returns on scrolling up.
 - **Link guard:** every in-app link first asks `/_ping`; with the server gone the page stays and shows the "not running" screen instead of navigating into a failed load, which is what sent the Home Screen app into a reload loop.
@@ -33,13 +36,25 @@ Reading (milestone 2 and the feedback):
 - **Contents** is a side sheet listing h1 to h3, with the current section marked when it opens.
 - **Not done from the design's milestone 2 list:** nothing. Extra: `scripts/check_reader.py` covers more than position restore.
 - **Math** is wrapped in `.math` elements and shown as TeX source in the code font until KaTeX arrives in milestone 5.
-- `render/document.py`, `templates/shell.html.j2`, `scripts/_local.py` and `scripts/check_reader.py` are new; `config.py`, `lab.py`, `agent.py`, `build.py` do not exist yet.
+- `render/document.py`, `templates/shell.html.j2`, `scripts/_local.py` and `scripts/check_reader.py` are new; `config.py`, `lab.py`, `agent.py` do not exist yet.
+
+Static build (milestone 4):
+
+- **Markdown is built only when a notebook links to it** (followed through other markdown), not every `.md` in the tree: the first build of ml-explorations published `README.md` and an untracked `CLAUDE.md`. `markdown = "all"` or `"none"` in `lectern.toml`, or `--markdown`, changes that.
+- **Links to files that are in the source but not on the site** (scripts, data) go to the repository's `blob/<branch>/` URL when a repository is known; otherwise they are left as written.
+- **The index has no dates and no "Recently changed"**: in a CI checkout every file has the same date. Directory headings are not links, since only the one index is written.
+- **Assets are at `_static/` with `?v=<hash>`** on each URL, not in a hashed directory.
+- **`--clean` only empties a directory that holds an earlier build** (it looks for `_static/reader.css`); anything else is refused. The output may be inside the source and is never built into itself.
+- **Two documents that would become the same page** (`x.ipynb` and `x.md`, or a root `index.md` against the index): the notebook or the index wins and the other is reported as skipped.
+- **`include` and `exclude` are `fnmatch` patterns** on the path from the source root; `*` crosses directories, so `tools/*` covers everything under `tools`.
+- **`--theme`** is `solarized`, `plain` or `eink`: the colours a first-time visitor gets. The reader's settings work on the built site as they do when served.
+- The link guard and the start page are server-only; a built page carries `data-static` and skips them. The CSP is a `<meta>` there, and built pages were checked to load their own scripts and styles from `file://` under it.
 - Ruff is told to skip `*.md` and `tests/fixtures`: its formatter rewrites Python snippets in this file and the code cells of fixture notebooks.
 
 Things to know when continuing:
 
 - **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.
-- **Waiting for the e-ink device:** its model, Android version and browser; whether `.local` resolves on it; whether Add to Home Screen gives full screen over plain http or the Tailscale HTTPS route is needed (decision 12); whether its system serif and mono are good enough or fonts should be bundled; whether taps and its page buttons reach the pager; whether a page turn should leave more or less than two lines of overlap.
+- **The e-ink tablet is an Onyx Boox Tab X C.** Anton found the e-ink theme clearly the best on it even though the screen has colour. Not yet reported from it: whether the theme was picked by itself on first visit, whether Add to Home Screen gives full screen over plain http or the Tailscale HTTPS route is needed (decision 12), whether fonts should be bundled, and how the page turning feels. He noted the cell numbers look slightly less good on Android than on iOS and macOS; they now have a 10.5px floor, which may or may not be what he saw.
 - A dropped connection used to print a traceback over the launch summary; `ReaderServer.handle_error` now ignores connection errors unless `--verbose`.
 - agent-memory-eval has a `private/` directory with a markdown file in it. `lectern serve` in that repo lists and serves it to the network like any other document. Nothing in the design excludes it; an ignore list is a possible addition.
 - Many of the notebooks' relative links point at `docs/…` and `papers/…` files that are not in the repo, so they lead to the 404 page.

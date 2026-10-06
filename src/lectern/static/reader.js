@@ -86,6 +86,8 @@
     var link = event.target.closest && event.target.closest("a[href]");
     if (!link || link.target || link.origin !== location.origin) return;
     if (link.pathname === location.pathname && link.hash) return;
+    // A published site has no lectern server behind it to ask.
+    if ("static" in root.dataset) return;
     event.preventDefault();
     ping().then(
       function () {
@@ -179,8 +181,8 @@
   // ---- Settings ----
 
   var settings = document.getElementById("settings");
-  // Column widths in rem, as in themes.css.
-  var WIDTHS = { n: 31, m: 36, w: 42, x: 54, f: Infinity };
+  // Column widths in px, as in themes.css.
+  var WIDTHS = { n: 600, m: 700, w: 820, x: 1040, f: Infinity };
 
   function showSettings() {
     settings.querySelectorAll("[data-pref]").forEach(function (button) {
@@ -188,15 +190,24 @@
       button.setAttribute("aria-pressed", on);
     });
     settings.querySelector("[data-modes]").hidden = prefs.family === "eink";
-    // A width that would look the same as the one before it on this screen is left out.
-    var room = window.innerWidth - 32;
-    var rem = prefs.size;
+    // A width is offered only if it is visibly wider than the one before it on this
+    // screen. The chosen one may not be on offer here (chosen on a larger screen, or the
+    // window has shrunk); then the widest that is offered is what the page looks like.
+    var room = (window.innerWidth - 32) * 0.92;
     var previous = 0;
-    settings.querySelectorAll("[data-pref='width']").forEach(function (button) {
-      var same = previous >= room && button.dataset.value !== prefs.width;
-      button.hidden = same;
-      previous = WIDTHS[button.dataset.value] * rem;
+    var offered = [];
+    var widths = settings.querySelectorAll("[data-pref='width']");
+    widths.forEach(function (button) {
+      button.hidden = previous >= room;
+      if (!button.hidden) offered.push(button.dataset.value);
+      previous = WIDTHS[button.dataset.value];
     });
+    var effective = offered.indexOf(prefs.width) < 0 ? offered[offered.length - 1] : prefs.width;
+    widths.forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.value === effective);
+    });
+    // With one width to choose from, as on a phone, there is nothing to choose.
+    settings.querySelector("[data-width-setting]").hidden = offered.length < 2;
     settings.querySelector("[data-size-value]").textContent = prefs.size + " px";
     settings.querySelector("[data-size-step='-1']").disabled = prefs.size <= window.lectern.size.min;
     settings.querySelector("[data-size-step='1']").disabled = prefs.size >= window.lectern.size.max;

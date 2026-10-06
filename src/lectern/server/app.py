@@ -14,14 +14,17 @@ from .. import APP_NAME, __version__, library, netinfo
 from ..cache import RenderCache, RenderError
 from ..paths import DOC_SUFFIXES, resolve
 from ..render import render_document
-from ..render.page import STATIC, THEME_COLOR, Crumb, asset_hash, render_page, static_url
+from ..render.page import (
+    CSP,
+    STATIC,
+    THEME_COLOR,
+    Crumb,
+    asset_hash,
+    render_page,
+    static_url,
+)
 
 DEFAULT_PORT = 8642
-
-# No inline or third-party scripts, whatever a notebook's HTML output or markdown contains.
-CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
-)
 
 CONTENT_TYPES = {
     ".css": "text/css; charset=utf-8",

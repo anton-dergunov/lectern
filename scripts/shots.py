@@ -49,7 +49,7 @@ def main() -> None:
             browser = getattr(playwright, engine).launch()
             for theme in themes:
                 family, _, mode = theme.partition("-")
-                prefs = {"family": family, "mode": mode or "light", "size": args.size}
+                prefs = {"family": family, "mode": mode or "light", "size": args.size, "width": "m"}
                 context = browser.new_context(viewport={"width": width, "height": height})
                 context.add_init_script(
                     f"localStorage.setItem('lectern:prefs', {json.dumps(json.dumps(prefs))})"

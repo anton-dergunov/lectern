@@ -3,13 +3,16 @@
 {% macro row(entry, show_path=false) %}
 <li><a class="row" href="{{ entry.href }}">
   <span class="row-title">{{ entry.title }}</span>
-  <span class="meta">{{ entry.path if show_path else entry.name }} · {{ entry.modified }}</span>
+  <span class="meta">{{ entry.path if show_path else entry.name }}{% if not static_site %} · {{ entry.modified }}{% endif %}</span>
 </a></li>
 {% endmacro %}
 
 {% block main %}
 <main class="listing">
 <h1>{{ heading }}</h1>
+{% if description %}
+<p class="lede">{{ description }}</p>
+{% endif %}
 {% if roots is defined %}
 <ul class="rows">
 {% for root in roots %}
@@ -29,19 +32,23 @@
 {% endif %}
 {% for group in listing.groups %}
 <section class="group">
-{% if group.name %}
+{% if group.name and static_site %}
+<h2>{{ group.name }}</h2>
+{% elif group.name %}
 <h2><a href="{{ group.href }}">{{ group.name }}</a></h2>
 {% elif listing.recent or listing.groups | length > 1 %}
 <h2>This folder</h2>
 {% endif %}
 {% for entry in group.notebooks %}
-<a class="card" href="{{ entry.href }}">
-  <span class="card-title">{{ entry.title }}</span>
+<article class="card">
+  <a class="card-link" href="{{ entry.href }}">
+    <span class="card-title">{{ entry.title }}</span>
 {% if entry.summary %}
-  <span class="card-summary">{{ entry.summary }}</span>
+    <span class="card-summary">{{ entry.summary }}</span>
 {% endif %}
-  <span class="meta">{{ entry.name }} · {{ entry.minutes }} min · {{ entry.modified }}</span>
-</a>
+  </a>
+  <p class="meta">{{ entry.name }} · {{ entry.minutes }} min{% if not static_site %} · {{ entry.modified }}{% endif %}{% if source %} · <a href="{{ source }}/{{ entry.path | urlencode }}">Notebook on GitHub</a>{% endif %}</p>
+</article>
 {% endfor %}
 {% if group.pages %}
 <ul class="rows">
