@@ -2,13 +2,19 @@
 
 ## State on 2026-10-06
 
-**Milestones 1 to 6 are built.** Only milestone 7 (cleanup in the other repositories) is left. Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all of it is folded in. The repository is public at `anton-dergunov/lectern`; milestones 1 to 4 are tagged `v0.1.0`, milestone 5 is pushed, and the version is 0.2.0.
+**All seven milestones are built.** What is below this section is the original design, kept as the record of what was planned; where the build differs is listed first. Work from here on comes from `docs/tasks/plan.md` and from Anton's use.
 
-**ml-explorations is live on lectern** (`https://anton-dergunov.github.io/ml-explorations/`, built by its Pages workflow from the `v0.1.0` tag). Its `tools/build_site.py` can be deleted now. The site gets the bundled fonts and math only after a `v0.2.0` tag and a moved pin.
+Anton has read with lectern on the iPad (11 inch), the desktop (a 49-inch ultrawide), an Android phone and the e-ink tablet, an **Onyx Boox Tab X C** (13 inch, colour e-ink). His spoken feedback is in `/Users/anton/tmp-spoken-plans/jupylab/feedback.txt`, `feedback2.txt` and `feedback3.txt`; all of it is folded in. The repository is public at `anton-dergunov/lectern`, tagged `v0.1.0` (milestones 1 to 4) and `v0.2.0` (through milestone 6).
 
-**Milestone 6** is verified on the Mac: unit tests; the browser checks; and each command tried live on spare ports and bound to `127.0.0.1` (reuse of a running server, saved folders picked up and dropped by a running `serve --all`, `--qr`, the agent installed, seen running with `launchctl print`, and uninstalled again, and `lectern lab` reaching Jupyter's password page and refusing API calls without it). **Nothing is left installed or configured**: no agent, no `~/.config/lectern`. Not yet tried by Anton, and not tried at all: the Tailscale route.
+**Published:** `https://anton-dergunov.github.io/ml-explorations/` is built by lectern `v0.2.0` from that repository's Pages workflow.
 
-**Next step:** Anton tries milestones 5 and 6 on his devices; then milestone 7 (section 11, "Integration"), which changes agent-memory-eval and is his to approve. Ideas and postponed items outside the milestones are in `docs/tasks/plan.md`.
+**Milestone 7, the cleanup, is done in the working trees and uncommitted, for Anton to commit:**
+
+- **agent-memory-eval:** `jupyter-lab-qr.sh`, `jupyter-qr.sh`, `voila-qr.sh` and `custom.css` are deleted (each matched the last commit, so git has them), and the README has a "Reading on a tablet" section. Its notebooks are still gitignored, so it has no Pages build. Its two modified `.gitignore` files are Anton's and were left alone.
+- **ml-explorations:** `tools/build_site.py` is deleted, the README's preview command names `v0.2.0`, and `lectern.toml` no longer excludes the `tools` directory that is gone.
+- **Saved folders on this Mac** (`~/.config/lectern/config.toml`): agent-memory-eval, ml-explorations, long-tail-multi-label-classification and blog-code, so `lectern serve --all` serves the four. Checked on `127.0.0.1`. **The login agent is not installed**; that is Anton's to switch on.
+
+**Not tried by anyone:** the Tailscale route in the README; the agent listening on the network (it was run on `127.0.0.1` only); milestones 5 and 6 on the tablets. Pages for long-tail-multi-label-classification and blog-code would each need the workflow from ml-explorations and a short `lectern.toml`.
 
 Where the build differs from the design below (the design text is left as written):
 
