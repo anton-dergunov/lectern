@@ -3,6 +3,7 @@ from pathlib import Path
 from nbformat import v4
 
 from lectern.render import render_document
+from lectern.render.markdown import markdown_to_html
 
 from .conftest import write_notebook
 
@@ -113,3 +114,18 @@ def test_raw_html_in_markdown_keeps_its_structure(tmp_path: Path):
     # Local images are still embedded; ones elsewhere are left as they are.
     assert '<img alt="a dot" src="data:image/png;base64,' in fragment
     assert 'src="https://example.com/far.png"' in fragment
+
+
+def test_prices_are_not_math():
+    def inline_math(text: str) -> list[str]:
+        html = markdown_to_html(text)
+        return [part.split("</span>")[0] for part in html.split('<span class="math inline">')[1:]]
+
+    assert inline_math("~$62 (at an assumed $5/$30 per million tokens)") == []
+    assert inline_math("costs $5 and $10") == []
+    assert inline_math("paid $5 and $x$") == ["x"]
+    assert inline_math("$x_1$ and $ \\lambda = .7 $, a $\\alpha$-test") == [
+        "x_1",
+        " \\lambda = .7 ",
+        "\\alpha",
+    ]

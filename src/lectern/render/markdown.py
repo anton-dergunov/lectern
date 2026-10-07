@@ -4,7 +4,11 @@ import re
 from html import unescape as html_unescape
 from pathlib import Path
 
-from nbconvert.filters.markdown_mistune import IPythonRenderer, MarkdownWithMath
+from nbconvert.filters.markdown_mistune import (
+    IPythonRenderer,
+    MarkdownWithMath,
+    MathInlineParser,
+)
 
 from .document import Rendered, finish
 
@@ -13,6 +17,24 @@ _IMG_SRC = re.compile(
     r"""(?P<before><img\b[^>]*?\bsrc\s*=\s*(?P<quote>["']))(?P<src>.*?)(?P=quote)""",
     re.IGNORECASE | re.DOTALL,
 )
+
+
+class ReaderMathInlineParser(MathInlineParser):
+    """Inline `$...$` math that leaves prices alone.
+
+    nbconvert pairs any two dollar signs, so "~$62 (at an assumed $5/$30)" became a
+    formula. Here, as in pandoc, a `$` followed by a digit does not close math, and a
+    formula holds no bare `$`. Pandoc also wants no space inside the dollars; notebooks
+    write `$ \\lambda $`, so a formula may instead have a space at both ends, just not at
+    one: "$5 and $x$" is not math until `$x$`.
+    """
+
+    INLINE_MATH_TEX = (
+        r"(?s:(?<![$\\])\$"
+        r"(?P<math_inline_tex>(?=(?P<math_inline_padded>\s)?)(?:\\.|[^$\\])+?)"
+        r"(?(math_inline_padded)(?<=\s)|(?<=\S))\$(?!\d))"
+    )
+    SPECIFICATION = {**MathInlineParser.SPECIFICATION, "inline_math_tex": INLINE_MATH_TEX}
 
 
 class ReaderMarkdownRenderer(IPythonRenderer):
@@ -53,7 +75,8 @@ class ReaderMarkdownRenderer(IPythonRenderer):
 
 def markdown_to_html(source: str, **renderer_options) -> str:
     renderer = ReaderMarkdownRenderer(escape=False, **renderer_options)
-    return MarkdownWithMath(renderer=renderer).render(source)
+    inline = ReaderMathInlineParser(hard_wrap=False)
+    return MarkdownWithMath(renderer=renderer, inline=inline).render(source)
 
 
 def render_markdown(path: Path) -> Rendered:
