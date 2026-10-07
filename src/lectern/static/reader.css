@@ -187,7 +187,12 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
   max-width: calc(var(--measure) + 2 * var(--gutter));
   margin: 0 auto;
   padding: 1.6rem var(--gutter) calc(5rem + env(safe-area-inset-bottom));
+  overflow-wrap: break-word;
 }
+/* Anything still wider than the column is cut at its edge. A page wider than the screen is
+   shrunk to fit by Safari on the iPad, text and all. Not the whole column: the cell numbers
+   sit in the margin. */
+.cell.md, .out { overflow-x: clip; }
 
 /* Room for the bar when a link or the contents list jumps to a heading. */
 .cell, h1, h2, h3, h4 { scroll-margin-top: 3.4rem; }
@@ -246,11 +251,11 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 
 /* ---- Code: cells, and fenced blocks in prose ---- */
 
-.highlight, .cell.md > pre {
+.highlight, .cell.md pre:not(.highlight pre) {
   background: var(--bg-alt);
   border-radius: 6px;
 }
-.highlight pre, .cell.md > pre {
+.highlight pre, .cell.md pre {
   margin: 0;
   padding: 0.75rem 0.85rem;
   overflow-x: auto;
@@ -467,7 +472,7 @@ td.num { text-align: right; }
   color: inherit;
   text-decoration: none;
 }
-.row-title { color: var(--fg-strong); font-size: 0.92rem; line-height: 1.3; }
+.row-title { min-width: 0; color: var(--fg-strong); font-size: 0.92rem; line-height: 1.3; overflow-wrap: anywhere; }
 .row .meta { flex: none; max-width: 55%; text-align: right; overflow-wrap: anywhere; }
 .empty { color: var(--fg); }
 .listing .error { margin-top: 1rem; }
@@ -619,7 +624,7 @@ dialog.sheet::backdrop { background: var(--shade); }
 /* Put away, and brought back, by a tap on the page number in the footer. */
 [data-theme^="eink"][data-no-bar] .bar { display: none; }
 [data-theme^="eink"] .highlight,
-[data-theme^="eink"] .cell.md > pre,
+[data-theme^="eink"] .cell.md pre:not(.highlight pre),
 [data-theme^="eink"] .src:not([open]) > summary,
 [data-theme^="eink"] :not(pre) > code { border: 1px solid var(--rule); }
 [data-theme^="eink"] :not(pre) > code { padding: 0 0.25em; }
@@ -627,7 +632,7 @@ dialog.sheet::backdrop { background: var(--shade); }
 [data-theme^="eink"] .src[open] > summary { border: 1px solid var(--rule); }
 /* Panning a code block is a string of repaints; a wrapped line is one. */
 [data-theme^="eink"] .highlight pre,
-[data-theme^="eink"] .cell.md > pre { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
+[data-theme^="eink"] .cell.md pre { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
 [data-theme^="eink"] .stream,
 [data-theme^="eink"] .error { font-weight: 500; }
 [data-theme^="eink"] .out,
