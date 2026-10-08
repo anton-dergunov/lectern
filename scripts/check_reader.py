@@ -797,11 +797,9 @@ def run(engine_name: str, playwright) -> bool:
                 shown = pop.locator("p").text_content() == "Is this the third?"
                 results.append(check("a tap on the mark shows the note", shown))
                 pop.get_by_role("button", name="Remove").click()
-                asked = marker.evaluate(MARKED)["noted"] == 1
-                pop.get_by_role("button", name="Remove the note too?").click()
                 settle(marker)
-                removed = asked and marker.evaluate(MARKED)["noted"] == 0 and len(kept()) == 3
-                results.append(check("removing a mark with a note asks once", removed, kept()))
+                removed = marker.evaluate(MARKED)["noted"] == 0 and len(kept()) == 3
+                results.append(check("Remove takes the mark and its note", removed, kept()))
 
                 marker.get_by_role("button", name="Reading settings").click()
                 marker.get_by_role("button", name="E-ink").click()

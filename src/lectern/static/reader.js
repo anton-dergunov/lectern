@@ -1266,8 +1266,6 @@
 
     var showMark = function (hit) {
       var mark = hit.mark;
-      // A note is not thrown away by one stray tap.
-      var sure = !mark.note;
       showPop(hit.box, mark.note, [
         {
           label: mark.note ? "Edit note" : "Add note",
@@ -1278,12 +1276,7 @@
         },
         {
           label: "Remove",
-          act: function (event) {
-            if (!sure) {
-              sure = true;
-              event.currentTarget.textContent = "Remove the note too?";
-              return;
-            }
+          act: function () {
             hidePop();
             removeMark(mark);
           },
