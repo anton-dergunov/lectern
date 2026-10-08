@@ -6,17 +6,25 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 
 **The idea (Anton, 2026-10-06, after the first iPad session).** Reading is the main use, but sometimes a passage deserves a mark: select some text and keep it highlighted, or attach a remark to a part of the notebook. The marks are saved in a file somewhere, so they are there again when the same notebook is opened on the tablet or on the desktop.
 
-**Out of scope for now.** Recorded so it can be picked up as a follow-up.
-
 **Decided (Anton, 2026-10-08): only where lectern serves the pages.** A site made by `lectern build`, such as the notebooks published from a GitHub workflow, is for other people to read: its pages offer no way to mark or remark on anything and carry nobody's notes. Like the link guard and the start page, whatever is built for this is skipped when the page has `data-static`.
 
-**What has to be decided before building it:**
+**Decided the same day, before building:**
 
-- **It needs the server to accept writes.** Today lectern answers `GET` and `HEAD` only, and running without a token rests on that: nothing a device sends can change anything on the Mac (HANDOFF decisions 2 and 7). Saving a note is a write. The narrowest form would be one endpoint that can only append to or replace a notes file lectern itself owns, never a path the request names. Whether that is still acceptable without a token is the first question.
-- **Where the notes live.** Beside the notebook (`name.notes.json`, visible in git and travelling with the repo), or in lectern's own directory keyed by path (invisible to the repo, lost if the notebook moves).
-- **How a mark finds its text again after the notebook changes.** Cell id plus the quoted text and a little context around it is the usual answer; a mark whose text is gone should be shown as orphaned, not dropped.
-- **Selecting text on a touch screen** competes with the system's own selection menu; the interaction needs trying on the iPad before anything else is built.
-- **Getting the notes back to the laptop** in a form that is useful there: a markdown export per notebook, with each remark under the cell number it belongs to, may be worth more than the highlights themselves.
+- **The server will accept one kind of write.** A single `PUT` that can only replace the notes file of a document it already serves: the server works out the file's name, the request never names a path. It checks Host and Origin, takes JSON only (which a foreign web page cannot send), caps the size, checks the shape and writes the file itself. Still no token; what a device on the Wi-Fi can do is add and delete notes. On by default, with a setting in `config.toml` to turn it off.
+- **Notes live beside the document:** `analysis.ipynb` gets `analysis.notes.json`. Visible in git and travelling with the repository. Never handed out as a file and never published by `lectern build`.
+- **A mark finds its text again** by the id of its cell, the quoted words and 32 characters either side. One whose words are gone is kept and shown as orphaned.
+- **Back to the laptop:** `lectern notes PATH` prints markdown, each remark under its cell number and nearest heading. The JSON is the only file written.
+- **The touch interaction is tried before the rest is built**, in two variants.
+
+**Stage 1, built 2026-10-08: the interaction, kept in the browser.** Marks are in `localStorage` on the one device; nothing is sent to the server yet. Settings has "Marking text" with the two variants and Off:
+
+- **On selection:** select text the usual way; a small strip with Highlight and Note appears at the top or the bottom of the screen, whichever is farther from the selection. The first try put it under the selection, where the iPad puts its own menu (Android puts its above); a page can neither add to those menus nor tell where they will be, but they are always close to the selection.
+- **Marking mode:** a pen in the top bar switches it on; while it is on, whatever is selected becomes a highlight when the finger lifts.
+- Either way, a tap on a mark shows its note, with Add or Edit note and Remove.
+
+**To judge on the iPad (Safari, Chrome, the Home Screen app) and the Boox:** whether the strip is noticed at the edge and stays clear of the system's own menu; whether a tap on a mark lands; whether a word marked in the mode before the selection could be widened is a nuisance (press, drag, then lift is the way to mark more than a word); how the marks read on e-ink, where black-only shows them as a heavy underline and a double one for a note.
+
+**Stage 2, after a variant is chosen:** the notes file and the `PUT`, the setting that turns it off, a list of the document's notes with the orphaned ones, `lectern notes`, and the losing variant and its setting removed. Not planned: a remark on something with no text to select (a figure, a whole cell), and highlight colours.
 
 ## 2. Postponed from the first round of feedback
 

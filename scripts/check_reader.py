@@ -4,8 +4,8 @@
 
 Runs against the test fixtures on a local port, in Chromium and WebKit. Checks the top
 bar hiding, the reading position surviving a reload and a text-size change, settings,
-the contents list, folding sections, long output, the e-ink theme's page turning, going
-back and forward between documents, and what happens when the server stops.
+the contents list, folding sections, long output, the e-ink theme's page turning, marking
+text, going back and forward between documents, and what happens when the server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
 """
@@ -63,6 +63,43 @@ PAGE_EDGES = """() => {
     - (trim ? trim.offsetHeight : 0);
   return {top: scrollY + document.querySelector('.bar').offsetHeight, bottom: scrollY + bottom,
           trim: trim ? trim.offsetHeight : 0};
+}"""
+
+# Selects words in a cell as a reader would, and brings them into view: in the middle of the
+# screen, or with `block` at its start or its end.
+SELECT = """([cell, words, nth, block]) => {
+  const walker = document.createTreeWalker(document.getElementById(cell), NodeFilter.SHOW_TEXT);
+  for (let node; (node = walker.nextNode()); ) {
+    let at = -1;
+    for (let n = 0; n <= nth; n++) at = node.data.indexOf(words, at + 1);
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + words.length);
+    node.parentElement.scrollIntoView({block: block || 'center'});
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    return true;
+  }
+  return false;
+}"""
+
+# The marks on the page: how many plain and with a note, and for the first of them the cell
+# it is in, how far into its paragraph it starts, and a point on it to tap.
+MARKED = """() => {
+  const plain = [...(CSS.highlights.get('lectern-mark') || [])];
+  const noted = [...(CSS.highlights.get('lectern-note') || [])];
+  const first = plain[0] || noted[0];
+  const box = first && first.getClientRects()[0];
+  return {
+    plain: plain.length, noted: noted.length,
+    cell: first ? first.startContainer.parentElement.closest('.cell').id : '',
+    offset: first ? first.startOffset : -1,
+    text: first ? String(first) : '',
+    x: box ? box.left + box.width / 2 : 0, y: box ? box.top + box.height / 2 : 0,
+    kept: JSON.parse(localStorage.getItem('lectern:notes:' +
+      document.querySelector('main.doc').dataset.path) || '[]').length,
+  };
 }"""
 
 FONT_SIZE = "getComputedStyle(document.documentElement).fontSize"
@@ -586,7 +623,7 @@ def run(engine_name: str, playwright) -> bool:
             follower = context.new_page()
             follower.goto(desk.url("draft.ipynb"))
             follower.get_by_role("button", name="Reading settings").click()
-            follower.get_by_role("button", name="Show the new version").click()
+            follower.get_by_role("button", name="Reload automatically").click()
             follower.locator("#settings").get_by_role("button", name="Done").click()
             follower.evaluate("window.scrollTo(0, 4000)")
             follower.wait_for_timeout(2500)
@@ -604,8 +641,136 @@ def run(engine_name: str, playwright) -> bool:
             except AssertionError:
                 results.append(check("a saved notebook is shown again, in the same place", False))
             follower.get_by_role("button", name="Reading settings").click()
-            follower.get_by_role("button", name="Stay as it is").click()
+            follower.get_by_role("button", name="Keep this page").click()
             follower.close()
+
+    # ---- Marking text ----
+    with LocalServer(FIXTURES) as desk:
+        marker = context.new_page()
+        marker.on("pageerror", lambda error: errors.append(str(error)))
+        marker.goto(desk.url("long-read.ipynb"))
+        can_mark = marker.evaluate("Boolean(window.Highlight && window.CSS && CSS.highlights)")
+        if not can_mark:
+            print("  note marking text needs the CSS highlight API, which this browser lacks")
+        else:
+            pop = marker.locator(".mark-pop")
+            # The same words many times over in the cell: the third of them is the one marked.
+            strip = marker.locator(".mark-strip")
+            edges = "() => document.querySelector('.mark-strip').getBoundingClientRect().toJSON()"
+            marker.evaluate(SELECT, ["c-cell-5", "prose to read", 2, "end"])
+            try:
+                expect(strip.get_by_role("button", name="Highlight")).to_be_visible(timeout=3000)
+                results.append(check("a selection is offered Highlight and Note", True))
+            except AssertionError:
+                results.append(check("a selection is offered Highlight and Note", False))
+            box = marker.evaluate(edges)
+            results.append(check("at the top when it is low on the screen", box["top"] < 10, box))
+            marker.evaluate(SELECT, ["c-cell-5", "prose to read", 2, "start"])
+            settle(marker)
+            box = marker.evaluate(edges)
+            results.append(
+                check("at the bottom when it is high on the screen", box["bottom"] > 1150, box)
+            )
+            strip.get_by_role("button", name="Highlight").click()
+            made = marker.evaluate(MARKED)
+            done = made["plain"] == 1 and made["text"] == "prose to read" and made["kept"] == 1
+            done = (
+                done and not strip.is_visible() and marker.evaluate("String(getSelection())") == ""
+            )
+            results.append(check("Highlight marks it and lets the selection go", done, made))
+            marker.reload()
+            settle(marker)
+            # Out from under the top bar, where the selection was put to bring the strip down.
+            marker.evaluate(
+                """() => [...CSS.highlights.get('lectern-mark')][0].startContainer.parentElement
+                         .scrollIntoView({block: 'center'})"""
+            )
+            again = marker.evaluate(MARKED)
+            same = again["plain"] == 1 and again["cell"] == "c-cell-5"
+            same = same and again["offset"] == made["offset"]
+            results.append(check("the mark is there again, on the same words", same, again))
+
+            marker.mouse.click(again["x"], again["y"])
+            pop.get_by_role("button", name="Add note").click()
+            marker.locator(".note-editor textarea").fill("Is this the third?")
+            marker.locator(".note-editor").get_by_role("button", name="Save").click()
+            settle(marker)
+            noted = marker.evaluate(MARKED)
+            results.append(
+                check("a note can be put on it", noted["noted"] == 1 and noted["plain"] == 0, noted)
+            )
+            marker.mouse.click(noted["x"], noted["y"])
+            shown = pop.locator("p").text_content() == "Is this the third?"
+            results.append(check("a tap on the mark shows the note", shown))
+            pop.get_by_role("button", name="Remove").click()
+            asked = marker.evaluate(MARKED)["noted"] == 1
+            pop.get_by_role("button", name="Remove the note too?").click()
+            gone = marker.evaluate(MARKED)
+            removed = asked and gone["noted"] == 0 and gone["kept"] == 0
+            results.append(check("removing a mark with a note asks once", removed, gone))
+
+            marker.evaluate(SELECT, ["c-cell-3", "Sentence after sentence", 0])
+            strip.get_by_role("button", name="Note").click()
+            marker.locator(".note-editor textarea").fill("Straight to a note")
+            marker.locator(".note-editor").get_by_role("button", name="Save").click()
+            settle(marker)
+            direct = marker.evaluate(MARKED)
+            results.append(check("Note marks and remarks in one go", direct["noted"] == 1, direct))
+
+            # Marks whose notebook has changed since: one that has only moved, one that is gone.
+            marker.evaluate(
+                """() => localStorage.setItem('lectern:notes:fixtures/long-read.ipynb', JSON.stringify([
+                  {id: 'moved', cell: 'c-no-longer', start: 0, quote: 'A long read',
+                   prefix: '', suffix: 'An opening paragraph', note: ''},
+                  {id: 'gone', cell: 'c-cell-1', start: 12, quote: 'words that were deleted',
+                   prefix: 'before ', suffix: ' after', note: 'Kept all the same'}]))"""
+            )
+            marker.reload()
+            settle(marker)
+            changed = marker.evaluate(MARKED)
+            found = changed["plain"] == 1 and changed["cell"] == "c-cell-0"
+            results.append(
+                check("a mark is found again in a cell that was replaced", found, changed)
+            )
+            orphan = changed["noted"] == 0 and changed["kept"] == 2
+            results.append(check("one whose words are gone is kept, not shown", orphan, changed))
+
+            # The other way of marking: a mode, in which a selection is a mark.
+            marker.get_by_role("button", name="Reading settings").click()
+            marker.get_by_role("button", name="Marking mode").click()
+            marker.locator("#settings").get_by_role("button", name="Done").click()
+            pen = marker.get_by_role("button", name="Mark what is selected")
+            marker.evaluate(SELECT, ["c-cell-7", "prose to read", 0])
+            marker.wait_for_timeout(1300)
+            idle = marker.evaluate(MARKED)["plain"] == 1 and not strip.is_visible()
+            results.append(check("with the mode switched off, selecting marks nothing", idle))
+            pen.click()
+            marker.evaluate(SELECT, ["c-cell-7", "prose to read", 0])
+            marker.wait_for_timeout(1300)
+            moded = marker.evaluate(MARKED)
+            results.append(
+                check("switched on, a selection becomes a mark", moded["plain"] == 2, moded)
+            )
+            marker.get_by_role("button", name="Reading settings").click()
+            marker.get_by_role("button", name="Off", exact=True).click()
+            off = marker.evaluate(MARKED)
+            hidden = off["plain"] == 0 and off["kept"] == 3 and not pen.is_visible()
+            results.append(check("Off shows no marks and loses none", hidden, off))
+            marker.get_by_role("button", name="On selection").click()
+            marker.get_by_role("button", name="E-ink").click()
+            marker.locator("#settings").get_by_role("button", name="Done").click()
+            marker.evaluate("window.scrollTo(0, 0)")
+            settle(marker)
+            title = marker.evaluate(MARKED)
+            marker.mouse.click(title["x"], title["y"])
+            stayed = pop.is_visible() and marker.evaluate("window.scrollY") == 0
+            marker.mouse.click(700, 600)
+            settle(marker)
+            stayed = stayed and not pop.is_visible() and marker.evaluate("window.scrollY") == 0
+            results.append(
+                check("on e-ink a tap on a mark, or to put it away, turns no page", stayed)
+            )
+        marker.close()
 
     # ---- Back and forward between documents ----
     with tempfile.TemporaryDirectory() as work:
@@ -684,6 +849,10 @@ def run(engine_name: str, playwright) -> bool:
         local.locator("#Part-1 .fold").click()
         works = not local.locator("#Part-1 + p").is_visible()
         results.append(check("back, forward and folding work there too", works))
+        local.evaluate(SELECT, ["c-cell-5", "prose to read", 0])
+        local.wait_for_timeout(600)
+        unmarked = local.locator(".mark-pop, .mark-strip, [data-marking-setting]").count() == 0
+        results.append(check("a published page offers no marking", unmarked))
         results.append(check("nothing blocked by the page's own policy", not blocked, blocked))
         local.close()
 

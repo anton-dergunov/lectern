@@ -65,7 +65,7 @@ If lectern is stopped while a page is open, following a link shows "Lectern is n
 
 Running `lectern serve` while lectern is already running does not start a second one. It prints the address of the folder you are in if that is being served, and says how to get it served if not.
 
-With **Show the new version** switched on in a page's settings, the page reloads by itself, in the same place, when the notebook is saved again. It is off by default, and not offered in the e-ink theme.
+With **Reload automatically** switched on in a page's settings, the page reloads by itself, in the same place, when the notebook is saved again. It is off by default, and not offered in the e-ink theme.
 
 ### Folders you read often
 

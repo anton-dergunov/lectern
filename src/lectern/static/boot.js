@@ -11,6 +11,8 @@
     width: "m",
     hideCode: false,
     follow: false,
+    // How text gets marked: a bar on the selection, a marking mode, or not at all.
+    marking: "bar",
     // The two below only apply in the e-ink theme.
     ink: "mono",
     noBar: false,
@@ -69,6 +71,7 @@
     if (["light", "dark", "system"].indexOf(prefs.mode) < 0) prefs.mode = DEFAULTS.mode;
     if (WIDTHS.indexOf(prefs.width) < 0) prefs.width = DEFAULTS.width;
     if (["mono", "colour"].indexOf(prefs.ink) < 0) prefs.ink = DEFAULTS.ink;
+    if (["bar", "mode", "off"].indexOf(prefs.marking) < 0) prefs.marking = DEFAULTS.marking;
     prefs.size = Math.min(SIZE.max, Math.max(SIZE.min, Math.round(prefs.size)));
     return prefs;
   }

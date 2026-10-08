@@ -614,6 +614,104 @@ dialog.sheet::backdrop { background: var(--shade); }
 .stepper button:disabled { color: var(--fg-muted); cursor: default; }
 .stepper output { display: grid; place-items: center; color: var(--fg-strong); font-variant-numeric: tabular-nums; }
 
+/* ---- Notes and highlights ---- */
+/* Painted over the text by the script, which leaves the page's elements as they are. Only
+   inside the document: WebKit also paints the first words of an open dialog as marked. */
+
+.doc ::highlight(lectern-mark) { background-color: var(--mark); }
+.doc ::highlight(lectern-note) {
+  background-color: var(--mark);
+  text-decoration: underline 2px var(--mark-line);
+}
+/* Black only: a tint would dither, so a mark is a heavy line under the text, heavier than
+   a link's, and one with a note has two. */
+[data-theme="eink"] .doc ::highlight(lectern-mark) { text-decoration: underline 3px var(--mark-line); }
+[data-theme="eink"] .doc ::highlight(lectern-note) { text-decoration: underline double 3px var(--mark-line); }
+
+/* What can be done with a mark that was tapped, beside it on the page, and with a
+   selection, at the edge of the screen that is farther from it. */
+.mark-pop, .mark-strip {
+  z-index: 8;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: 0.2rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 4px 18px var(--shade);
+  color: var(--fg);
+  font: 0.8rem/1.4 var(--font-ui);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mark-pop { position: absolute; }
+/* Over the top bar, whether that is showing or not. */
+.mark-strip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
+  z-index: 12;
+  transform: translateX(-50%);
+}
+.mark-strip.at-top { top: calc(env(safe-area-inset-top) + 3px); bottom: auto; }
+.mark-pop[hidden], .mark-strip[hidden] { display: none; }
+.mark-pop p, .mark-strip p {
+  margin: 0.4rem 0.6rem 0.5rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--fg-strong);
+}
+.mark-actions { display: flex; }
+.mark-pop button, .mark-strip button, .note-actions button {
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: 600 0.8rem/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mark-strip button { padding: 0 1.3rem; }
+.mark-actions button + button { border-left: 1px solid var(--rule); }
+.mark-pen[hidden] { display: none; }
+.mark-pen[aria-pressed="true"] { border-radius: 8px; background: var(--bg-alt); color: var(--accent); }
+
+dialog.note-editor {
+  width: min(30rem, calc(100vw - 24px));
+  margin: calc(env(safe-area-inset-top) + 4rem) auto auto;
+  padding: 1rem 1rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+dialog.note-editor::backdrop { background: var(--shade); }
+.note-editor blockquote {
+  max-height: 4.4em;
+  margin: 0 0 0.7rem;
+  padding-left: 0.7rem;
+  overflow: hidden;
+  border-left: 2px solid var(--mark-line);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+/* 16px and no less: below it, an iPhone or iPad zooms the page in on the field. */
+.note-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg-strong);
+  font: 16px/1.45 var(--font-ui);
+  resize: vertical;
+}
+.note-actions { display: flex; justify-content: flex-end; margin-top: 0.3rem; }
+
 /* ---- "Lectern is not running", and the start page while it finds out ---- */
 
 .offline {
@@ -692,6 +790,8 @@ dialog.sheet::backdrop { background: var(--shade); }
 [data-theme^="eink"] .choice,
 [data-theme^="eink"] .stepper { border-width: 1px; }
 [data-theme^="eink"] .choice button[aria-pressed="true"] { background: #000; color: #fff; }
+[data-theme^="eink"] .mark-pop, [data-theme^="eink"] .mark-strip, [data-theme^="eink"] dialog.note-editor { border: 2px solid var(--rule); box-shadow: none; }
+[data-theme^="eink"] .mark-pen[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
 [data-theme^="eink"] .toc a[aria-current] { border-left-width: 4px; }
 /* With no grey to dim a button that does nothing here, its label is left out. */
 [data-theme^="eink"] .stepper button:disabled,
@@ -755,4 +855,5 @@ dialog.sheet::backdrop { background: var(--shade); }
   .bar { display: none; }
   .src > summary { display: none; }
   .fold { display: none; }
+  .mark-pop, .mark-strip { display: none; }
 }

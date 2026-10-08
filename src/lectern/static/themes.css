@@ -19,6 +19,8 @@
   /* 3.41:1 on base3, so links are always underlined as well. */
   --link: #268bd2;
   --accent: #cb4b16;
+  --mark: rgb(181 137 0 / 0.28);
+  --mark-line: #b58900;
   --code-fg: #586e75;
   --err: #dc322f;
   --shade: rgb(7 54 66 / 0.25);
@@ -50,6 +52,8 @@
   --rule: #0f4756;
   --link: #268bd2;
   --accent: #cb4b16;
+  --mark: rgb(181 137 0 / 0.38);
+  --mark-line: #b58900;
   --code-fg: #93a1a1;
   --err: #dc322f;
   --shade: rgb(0 0 0 / 0.45);
@@ -73,6 +77,8 @@
   --rule: #dddddd;
   --link: #0b57d0;
   --accent: #a4380f;
+  --mark: #fff3a3;
+  --mark-line: #b08a00;
   --code-fg: #222222;
   --err: #c0261d;
   --shade: rgb(0 0 0 / 0.25);
@@ -103,6 +109,8 @@
   --rule: #2e2e2e;
   --link: #7ab7ff;
   --accent: #ffa657;
+  --mark: rgb(255 214 10 / 0.3);
+  --mark-line: #ffd60a;
   --code-fg: #dcdcdc;
   --err: #ff7b72;
   --shade: rgb(0 0 0 / 0.6);
@@ -136,6 +144,8 @@
   --rule: #000000;
   --link: #000000;
   --accent: #000000;
+  --mark: transparent;
+  --mark-line: #000000;
   --code-fg: #000000;
   --err: #000000;
   --shade: transparent;
@@ -167,6 +177,8 @@
 [data-theme="eink-colour"] {
   --link: #0033b3;
   --err: #b00000;
+  --mark: #ffe14d;
+  --mark-line: #000000;
 
   --syn-kw: #0033b3;
   --syn-str: #067d17;

@@ -109,6 +109,17 @@ Folding, whole-line page turns, back and forward (version 0.2.4, 2026-10-08):
 - **Markdown files now come back to the place they were left at.** Their one cell has no id, and the saved place named a cell by id, so nothing was restored for them.
 - **Not judged on a device:** the size of the fold marker under a finger, how the strip above the footer reads on the Boox, and whether two carried lines is the right number.
 
+Notes and highlights, stage 1 of 2 (2026-10-08, a trial; `docs/tasks/plan.md` section 1 has the decisions and what stage 2 is):
+
+- **Only the interaction is built, and the marks stay in the browser** (`localStorage["lectern:notes:<path>"]`). The server is unchanged and still answers `GET` and `HEAD` only; decisions 2 and 7 are amended in stage 2, when one narrow `PUT` arrives. `RENDER_VERSION` is as it was.
+- **Two ways of marking, chosen in the settings** (pref `marking`: `bar`, `mode` or `off`): a strip with Highlight and Note at the edge of the screen farther from the selection (`.mark-strip`; Anton found that a bar beside the selection lands on the system's menu, which is below it on the iPad and above it on Android), or a pen in the top bar that makes every selection a highlight (`data-marking` on `<html>` while it is on). Anton liked both on the devices; whether both stay is decided at stage 2.
+- **Marks are painted with the CSS highlight API** (`::highlight(lectern-mark)`, `::highlight(lectern-note)`), so no element of the page is changed and folding, the reading position and the page turns are unaffected. Without the API (Safari before 17.2) marking is not offered. The colours are `--mark` and `--mark-line` in `themes.css`; black-only e-ink underlines instead of tinting.
+- **A mark is `{id, cell, start, quote, prefix, suffix, note, created, updated}`.** The text is the document's text nodes joined, leaving out buttons, summaries, cell numbers and KaTeX's hidden MathML. It is looked for in its own cell first (the nearest match to `start` when the words occur more than once), then anywhere if what stood beside it is there too; otherwise it is kept and not painted.
+- **WebKit paints the first words of an open modal dialog as marked** whenever the page has a mark. The highlight rules are therefore scoped to `.doc`. Seen in Playwright's WebKit; not checked in Safari itself.
+- **Built pages offer none of it:** the settings section is not in their markup and the script stops at `data-static`.
+- **The follow setting is reworded** to "When the file changes: Keep this page / Reload automatically".
+- **The edge strip has not been tried on a touch screen**; the first version, with the bar beside the selection, has.
+
 Things to know when continuing:
 
 - **Cold start with the server stopped works** in Chromium and, by Anton's test, in the Home Screen app on the iPad: the cached start page says lectern is not running. WebKit under Playwright does not use its cache for that page, so `check_reader.py` reports it as a note there instead of a failure.
