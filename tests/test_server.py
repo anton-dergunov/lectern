@@ -8,10 +8,12 @@ from lectern import cache
 from lectern.server.app import make_server
 
 
-def request(server, path: str, method: str = "GET", headers: dict | None = None):
+def request(
+    server, path: str, method: str = "GET", headers: dict | None = None, body: bytes | None = None
+):
     connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
     try:
-        connection.request(method, path, headers=headers or {})
+        connection.request(method, path, body=body, headers=headers or {})
         response = connection.getresponse()
         return response, response.read().decode("utf-8", "replace")
     finally:
@@ -126,10 +128,135 @@ def test_unknown_host_is_refused(server):
         assert response.status == 200, host
 
 
-@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH"])
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 def test_only_reading_is_allowed(server, method: str):
     response, _ = request(server, "/proj/notebooks/sample.ipynb", method=method)
     assert response.status == 405 and response.getheader("Allow") == "GET, HEAD"
+
+
+NOTES = "/_notes/proj/notebooks/sample.ipynb"
+NOTE = {"id": "a1", "cell": "c-x", "start": 3, "quote": "some words", "note": "A remark"}
+
+
+def put_notes(server, path: str = NOTES, notes=None, rev: str = "", **headers):
+    """As a browser on one of the server's own pages sends them, unless told otherwise."""
+    sent = {
+        "Content-Type": "application/json",
+        "Origin": f"http://127.0.0.1:{server.server_address[1]}",
+        **{name.replace("_", "-"): value for name, value in headers.items()},
+    }
+    body = json.dumps({"rev": rev, "notes": [NOTE] if notes is None else notes}).encode()
+    response, text = request(server, path, "PUT", {k: v for k, v in sent.items() if v}, body)
+    return response, json.loads(text) if text.startswith("{") else text
+
+
+def files(root: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
+def test_notes_are_kept_beside_the_document_and_handed_back(server, root: Path):
+    response, body = request(server, NOTES)
+    assert response.status == 200 and json.loads(body) == {"rev": "", "notes": []}
+    assert response.getheader("Cache-Control") == "no-store"
+    before = files(root)
+
+    response, kept = put_notes(server)
+    assert response.status == 200 and kept["notes"][0]["note"] == "A remark"
+    assert json.loads(request(server, NOTES)[1]) == kept
+    # One file more, beside the notebook, and nothing else touched.
+    after = files(root)
+    assert set(after) - set(before) == {"notebooks/sample.notes.json"}
+    assert all(after[name] == before[name] for name in before)
+
+    # From the version before: refused, and told what is there now.
+    response, current = put_notes(server, notes=[], rev="")
+    assert response.status == 409 and current == kept
+
+    response, emptied = put_notes(server, notes=[], rev=kept["rev"])
+    assert response.status == 200 and emptied == {"rev": "", "notes": []}
+    assert files(root) == before
+
+    response, kept = put_notes(server, "/_notes/proj/docs/note.md")
+    assert response.status == 200 and (root / "docs" / "note.notes.json").is_file()
+
+
+def test_the_notes_file_is_not_a_document(server, root: Path):
+    put_notes(server)
+    assert request(server, "/proj/notebooks/sample.notes.json")[0].status == 404
+    assert "sample.notes" not in request(server, "/proj/")[1]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/_notes/proj/notebooks/missing.ipynb",
+        "/_notes/proj/notebooks/sample.py",
+        "/_notes/proj/notebooks/",
+        "/_notes/proj/docs/pixel.png",
+        "/_notes/proj/.env",
+        "/_notes/proj/escape.md",
+        "/_notes/proj/../outside.md",
+        "/_notes/proj/docs/%2e%2e%2f%2e%2e%2foutside.md",
+        "/_notes/other/x.ipynb",
+        "/_notes/",
+    ],
+)
+def test_notes_only_on_documents_that_are_served(server, root: Path, tmp_path: Path, path: str):
+    before = files(tmp_path)
+    assert request(server, path)[0].status == 404
+    assert put_notes(server, path)[0].status == 404
+    assert files(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    ("headers", "status"),
+    [
+        # A page from somewhere else, a form, a request that does not say where it is from.
+        ({"Origin": "http://evil.example"}, 403),
+        ({"Origin": ""}, 403),
+        ({"Content_Type": "text/plain"}, 415),
+        ({"Content_Type": "application/x-www-form-urlencoded"}, 415),
+        ({"Host": "evil.example", "Origin": "http://evil.example"}, 421),
+    ],
+)
+def test_notes_are_taken_only_from_lecterns_own_pages(server, root: Path, headers, status):
+    before = files(root)
+    assert put_notes(server, **headers)[0].status == status
+    assert files(root) == before
+
+
+def test_notes_that_are_too_much_or_not_notes(server, root: Path):
+    before = files(root)
+    assert put_notes(server, notes=[{**NOTE, "path": "/etc/passwd"}])[0].status == 400
+    assert put_notes(server, notes="everything")[0].status == 400
+    headers = {
+        "Content-Type": "application/json",
+        "Origin": f"http://127.0.0.1:{server.server_address[1]}",
+    }
+    assert request(server, NOTES, "PUT", headers, b"{ half")[0].status == 400
+    assert request(server, NOTES, "PUT", headers, b"[]")[0].status == 400
+    long = [{**NOTE, "id": f"n{n}", "note": "x" * 9000} for n in range(200)]
+    assert put_notes(server, notes=long)[0].status == 413
+    assert files(root) == before
+    # The other ways of changing something are still not there.
+    for method in ("POST", "DELETE", "PATCH", "OPTIONS"):
+        assert request(server, NOTES, method)[0].status == 405
+
+
+def test_notes_can_be_switched_off(root: Path):
+    import threading
+
+    server = make_server({"proj": root}, host="127.0.0.1", port=0, notes=False)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        before = files(root)
+        assert request(server, NOTES)[0].status == 404
+        assert put_notes(server)[0].status == 404
+        assert files(root) == before
+        assert request(server, "/proj/notebooks/sample.ipynb")[0].status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_head_has_headers_and_no_body(server):
@@ -254,6 +381,12 @@ def test_saved_folders_are_followed_while_running(root: Path, tmp_path: Path):
         settings.write_text("[roots\n")
         time.sleep(1.1)
         assert request(server, "/proj/")[0].status == 200
+
+        # Notes are kept unless the file says not to, and that too is followed.
+        assert request(server, NOTES)[0].status == 200
+        config.save(config.Config(roots={"proj": root}, notes=False), settings)
+        time.sleep(1.1)
+        assert request(server, NOTES)[0].status == 404 and put_notes(server)[0].status == 404
 
         config.save(config.Config(), settings)
         time.sleep(1.1)

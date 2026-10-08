@@ -1,6 +1,6 @@
 # Tasks beyond the milestones
 
-Ideas and postponed items that came out of using lectern. The milestones themselves are in `HANDOFF.md`, section 13. Nothing here is started.
+Ideas and postponed items that came out of using lectern. The milestones themselves are in `HANDOFF.md`, section 13. Section 1 is built; nothing else here is started.
 
 ## 1. Notes and highlights on a notebook
 
@@ -15,16 +15,11 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 - **A mark finds its text again** by the id of its cell, the quoted words and 32 characters either side. One whose words are gone is kept and shown as orphaned.
 - **Back to the laptop:** `lectern notes PATH` prints markdown, each remark under its cell number and nearest heading. The JSON is the only file written.
 - **The touch interaction is tried before the rest is built**, in two variants.
+- **After trying them (Anton): marking mode only.** A pen in the top bar, always there; while it is on, whatever is selected is marked. No setting for it in the page.
 
-**Stage 1, built 2026-10-08: the interaction, kept in the browser.** Marks are in `localStorage` on the one device; nothing is sent to the server yet. Settings has "Marking text" with the two variants and Off:
+**Built 2026-10-08, in two stages.** The first had only the interaction, with the marks kept in the browser, so that it could be tried on the iPad and the Boox before anything was written to disk. Two ways of marking were tried there: a bar beside the selection, and a marking mode. The bar landed on the system's own selection menu, which is below the selection on the iPad and above it on Android; a page can neither add to that menu nor tell where it will be. A strip at the far edge of the screen avoided it, but Anton chose to keep the marking mode alone. `HANDOFF.md` describes what is built.
 
-- **On selection:** select text the usual way; a small strip with Highlight and Note appears at the top or the bottom of the screen, whichever is farther from the selection. The first try put it under the selection, where the iPad puts its own menu (Android puts its above); a page can neither add to those menus nor tell where they will be, but they are always close to the selection.
-- **Marking mode:** a pen in the top bar switches it on; while it is on, whatever is selected becomes a highlight when the finger lifts.
-- Either way, a tap on a mark shows its note, with Add or Edit note and Remove.
-
-**To judge on the iPad (Safari, Chrome, the Home Screen app) and the Boox:** whether the strip is noticed at the edge and stays clear of the system's own menu; whether a tap on a mark lands; whether a word marked in the mode before the selection could be widened is a nuisance (press, drag, then lift is the way to mark more than a word); how the marks read on e-ink, where black-only shows them as a heavy underline and a double one for a note.
-
-**Stage 2, after a variant is chosen:** the notes file and the `PUT`, the setting that turns it off, a list of the document's notes with the orphaned ones, `lectern notes`, and the losing variant and its setting removed. Not planned: a remark on something with no text to select (a figure, a whole cell), and highlight colours.
+**Left for later:** a remark on something with no text to select (a figure, a whole cell); highlight colours; an indication on the listing of which documents have notes.
 
 ## 2. Postponed from the first round of feedback
 

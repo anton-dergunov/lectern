@@ -34,8 +34,6 @@
   var canMark = Boolean(
     served && doc && doc.dataset.path && window.Highlight && window.CSS && CSS.highlights
   );
-  // Filled in further down, where the marks are.
-  var applyMarking = function () {};
 
   // Behind HTTPS (or on localhost) a service worker can stand in for the browser's own
   // error page. Elsewhere browsers do not offer one, and this does nothing.
@@ -329,8 +327,6 @@
       var on = String(prefs[button.dataset.pref]) === button.dataset.value;
       button.setAttribute("aria-pressed", on);
     });
-    var marking = settings.querySelector("[data-marking-setting]");
-    if (marking) marking.hidden = !canMark;
     settings.querySelector("[data-modes]").hidden = prefs.family === "eink";
     settings.querySelector("[data-inks]").hidden = prefs.family !== "eink";
     // Only where there is a file that can change under the page, and not on e-ink, where
@@ -378,7 +374,6 @@
           window.lectern.set(button.dataset.pref, value);
           if (button.dataset.pref === "hideCode") applyHideCode();
         });
-        if (button.dataset.pref === "marking") applyMarking();
         showBar(true);
         updatePager();
       } else if (button.dataset.sizeStep) {
@@ -879,15 +874,16 @@
   // Marks are painted over the text (the CSS highlight API) and the page's elements are
   // left as they are, so folding, the reading position and the page turns do not notice.
   //
-  // A trial, to be judged on the devices: the marks are kept in this browser only, and
-  // there are two ways of making one, chosen in the settings. Either a small strip appears
-  // at an edge of the screen while something is selected, or a mode is switched on in which a selection is marked as
-  // soon as it is made.
+  // A mark is made with the pen in the top bar: while that is switched on, whatever is
+  // selected is marked. A page cannot add to the menu a device shows for a selection, nor
+  // tell which side of the selection it will be on, so nothing is offered there. A tap on
+  // a mark shows its note and what can be done with it.
 
   var CONTEXT = 32;
   var LONGEST_MARK = 2000;
-  // Text that is not the document's: put there by this script, or said twice for a reader.
-  var NOT_MARKED = "button, summary, .cell-n, .stream-tools, .katex-mathml";
+  // Text that is not the document's: put there by this script or by the renderer (the
+  // pilcrow that links to a heading), or said twice for a reader.
+  var NOT_MARKED = "button, summary, .cell-n, .stream-tools, .anchor-link, .katex-mathml";
 
   // The document's text as one string, and where each piece of it is on the page.
   function textModel() {
@@ -996,48 +992,114 @@
   }
 
   if (canMark) {
-    var MARKS = "lectern:notes:" + doc.dataset.path;
+    // Where this document's marks are kept: the server writes them to a file beside it.
+    var NOTES = "/_notes" + location.pathname;
     var marks = [];
-    // The marks that are on the page, each with where it is.
+    var rev = "";
+    // The marks that are on the page, each with where it is, in reading order.
     var painted = [];
-
-    var loadMarks = function () {
-      try {
-        var saved = JSON.parse(localStorage.getItem(MARKS));
-        return Array.isArray(saved) ? saved : [];
-      } catch (e) {
-        return [];
-      }
-    };
-
-    var saveMarks = function () {
-      try {
-        if (marks.length) localStorage.setItem(MARKS, JSON.stringify(marks));
-        else localStorage.removeItem(MARKS);
-      } catch (e) {}
-    };
 
     var paint = function () {
       var plain = new Highlight();
       var noted = new Highlight();
       painted = [];
-      if (prefs.marking !== "off" && marks.length) {
+      if (marks.length) {
         var model = textModel();
         marks.forEach(function (mark) {
           var at = locate(model, mark);
           if (at < 0) return;
           var range = rangeFor(model, at, at + mark.quote.length);
           (mark.note ? noted : plain).add(range);
-          painted.push({ mark: mark, range: range });
+          painted.push({ mark: mark, range: range, at: at });
+        });
+        painted.sort(function (a, b) {
+          return a.at - b.at;
         });
       }
       CSS.highlights.set("lectern-mark", plain);
       CSS.highlights.set("lectern-note", noted);
+      listButton.hidden = !marks.length;
     };
 
-    var marksChanged = function () {
-      saveMarks();
+    // ---- Keeping them ----
+    // The whole list is sent each time, with the version it was changed from. If another
+    // device has saved since, the server sends back what it has instead, and what was
+    // changed here is made again on top of that: `changes` holds every mark added or
+    // edited (and `null` for one removed) that the server has not yet taken.
+
+    var changes = {};
+    var sending = false;
+    var retry = 0;
+
+    var withChanges = function (list, made) {
+      var out = list.filter(function (mark) {
+        return !(mark.id in made);
+      });
+      Object.keys(made).forEach(function (id) {
+        if (made[id]) out.push(made[id]);
+      });
+      return out;
+    };
+
+    var send = function () {
+      clearTimeout(retry);
+      if (sending || !Object.keys(changes).length) return;
+      sending = true;
+      var sent = changes;
+      changes = {};
+      var failed = function (again) {
+        // Still wanted, unless changed again since.
+        Object.keys(sent).forEach(function (id) {
+          if (!(id in changes)) changes[id] = sent[id];
+        });
+        sending = false;
+        pen.toggleAttribute("data-unsaved", true);
+        if (again) retry = setTimeout(send, again);
+      };
+      fetch(NOTES, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rev: rev, notes: marks }),
+      }).then(
+        function (response) {
+          if (response.status !== 200 && response.status !== 409) {
+            // Refused, not unreachable: asking again would get the same answer.
+            failed(response.status >= 500 ? 5000 : 0);
+            return null;
+          }
+          return response.json().then(function (kept) {
+            rev = kept.rev;
+            if (response.status === 409) {
+              marks = withChanges(withChanges(kept.notes, sent), changes);
+              paint();
+              failed(1);
+              return;
+            }
+            sending = false;
+            pen.removeAttribute("data-unsaved");
+            send();
+          });
+        },
+        function () {
+          failed(5000);
+        }
+      );
+    };
+
+    var marksChanged = function (mark, removed) {
+      var change = {};
+      change[mark.id] = removed ? null : mark;
+      // By id: the list may have been replaced since whoever is asking was handed the mark.
+      marks = withChanges(marks, change);
+      changes[mark.id] = change[mark.id];
       paint();
+      send();
+    };
+
+    var fetchMarks = function () {
+      return fetch(NOTES, { cache: "no-store" }).then(function (response) {
+        return response.ok ? response.json() : Promise.reject(new Error(response.status));
+      });
     };
 
     var addMark = function (found, note) {
@@ -1046,11 +1108,19 @@
       found.note = note || "";
       found.created = now;
       found.updated = now;
-      marks.push(found);
-      marksChanged();
+      marksChanged(found);
     };
 
-    // The newest mark drawn at this point of the screen, with the line of it that was hit.
+    var removeMark = function (mark) {
+      marksChanged(mark, true);
+    };
+
+    var lastBox = function (range) {
+      var boxes = range.getClientRects();
+      return boxes.length ? boxes[boxes.length - 1] : range.getBoundingClientRect();
+    };
+
+    // The last mark drawn at this point of the screen, with the line of it that was hit.
     var markAt = function (x, y) {
       for (var i = painted.length - 1; i >= 0; i -= 1) {
         var boxes = painted[i].range.getClientRects();
@@ -1064,28 +1134,25 @@
       return null;
     };
 
-    // ---- What can be done here ----
-    // For a mark that was tapped, a card beside it: part of the page, so it scrolls away
-    // with what it belongs to. For a selection, a strip at an edge of the screen. The
-    // system's own menu for a selection is above it on some devices and below it on others,
-    // and always close to it, so the strip takes the edge that the selection is farther from.
+    // ---- The card beside a mark that was tapped ----
+    // It is part of the page, not of the screen, so it scrolls away with what it belongs to.
 
     var pop = document.createElement("div");
     pop.className = "mark-pop";
     pop.hidden = true;
-    var strip = document.createElement("div");
-    strip.className = "mark-strip";
-    strip.hidden = true;
-    document.body.append(pop, strip);
-    var holdStrip = 0;
+    document.body.appendChild(pop);
     var coarse = window.matchMedia("(pointer: coarse)").matches;
 
-    var fill = function (panel, text, actions) {
-      panel.textContent = "";
+    var hidePop = function () {
+      pop.hidden = true;
+    };
+
+    var showPop = function (box, text, actions) {
+      pop.textContent = "";
       if (text) {
         var words = document.createElement("p");
         words.textContent = text;
-        panel.appendChild(words);
+        pop.appendChild(words);
       }
       if (actions.length) {
         var row = document.createElement("div");
@@ -1095,18 +1162,10 @@
           button.addEventListener("click", action.act);
           row.appendChild(button);
         });
-        panel.appendChild(row);
+        pop.appendChild(row);
       }
-      panel.hidden = false;
-    };
-
-    var hidePop = function () {
-      pop.hidden = true;
-    };
-
-    var showPop = function (box, text, actions) {
       pop.style.left = "0px";
-      fill(pop, text, actions);
+      pop.hidden = false;
       var gap = coarse ? 14 : 8;
       var floor = window.innerHeight - (pager ? pager.offsetHeight : 0);
       var top = box.bottom + gap;
@@ -1119,32 +1178,8 @@
       pop.style.left = window.scrollX + left + "px";
     };
 
-    var hideStrip = function () {
-      strip.hidden = true;
-    };
-
-    var showStrip = function (range, text, actions) {
-      var box = range.getBoundingClientRect();
-      var low = (box.top + box.bottom) / 2 > window.innerHeight / 2;
-      strip.classList.toggle("at-top", low);
-      // At the bottom it stands on the footer that turns pages, where there is one.
-      strip.style.bottom = !low && pager && pager.offsetHeight ? pager.offsetHeight + 10 + "px" : "";
-      fill(strip, text, actions);
-    };
-
-    // A tap on the strip may take the selection away before the click arrives; the
-    // selection it was shown for is remembered, and it stays up long enough for the click.
-    strip.addEventListener("pointerdown", function () {
-      holdStrip = Date.now() + 1000;
-      setTimeout(selectionSettled, 1100);
-    });
-    [pop, strip].forEach(function (panel) {
-      panel.addEventListener("mousedown", function (event) {
-        event.preventDefault();
-      });
-      panel.addEventListener("click", function (event) {
-        event.preventDefault();
-      });
+    pop.addEventListener("click", function (event) {
+      event.preventDefault();
     });
 
     // ---- Writing a note ----
@@ -1160,21 +1195,16 @@
       '<button value="save">Save</button></div></form>';
     document.body.appendChild(editor);
     editor.addEventListener("close", function () {
-      var done = editing;
+      var mark = editing;
       editing = null;
-      if (!done || editor.returnValue !== "save") return;
-      var text = editor.querySelector("textarea").value.trim();
-      if (done.fresh) {
-        addMark(done.mark, text);
-      } else {
-        done.mark.note = text;
-        done.mark.updated = new Date().toISOString();
-        marksChanged();
-      }
+      if (!mark || editor.returnValue !== "save") return;
+      mark.note = editor.querySelector("textarea").value.trim();
+      mark.updated = new Date().toISOString();
+      marksChanged(mark);
     });
 
-    var editNote = function (mark, fresh) {
-      editing = { mark: mark, fresh: fresh };
+    var editNote = function (mark) {
+      editing = mark;
       editor.returnValue = "";
       var quote = mark.quote.length > 200 ? mark.quote.slice(0, 200) + "…" : mark.quote;
       editor.querySelector("blockquote").textContent = quote;
@@ -1182,70 +1212,30 @@
       editor.showModal();
     };
 
-    // ---- Making a mark from a selection ----
+    // ---- Marking: with the pen in the top bar switched on, what is selected is marked ----
 
-    var selected = null;
     var settling = 0;
     var pointerDown = false;
 
-    var takeSelected = function (withNote) {
-      var found = selected;
-      selected = null;
-      hideStrip();
-      window.getSelection().removeAllRanges();
-      if (!found) return;
-      if (withNote) editNote(found, true);
-      else addMark(found);
-    };
-
     var selectionSettled = function () {
-      if (prefs.marking === "off" || document.querySelector("dialog[open]")) return;
+      if (!root.hasAttribute("data-marking") || document.querySelector("dialog[open]")) return;
       var selection = window.getSelection();
       var range = selection.rangeCount && !selection.isCollapsed ? selection.getRangeAt(0) : null;
       var found = range && range.intersectsNode(doc) ? describe(range) : null;
-      if (!found) {
-        if (Date.now() > holdStrip) {
-          selected = null;
-          hideStrip();
-        }
+      if (!found) return;
+      // Not while it is still being dragged out.
+      if (pointerDown) {
+        settling = setTimeout(selectionSettled, 300);
         return;
       }
-      if (prefs.marking === "mode" && !root.hasAttribute("data-marking")) return;
-      if (found.quote.length > LONGEST_MARK) {
-        selected = null;
-        showStrip(range, "Too much to mark at once.", []);
-        return;
-      }
-      if (prefs.marking === "mode") {
-        // Not while it is still being dragged out.
-        if (pointerDown) {
-          settling = setTimeout(selectionSettled, 300);
-          return;
-        }
-        addMark(found);
-        selection.removeAllRanges();
-        return;
-      }
-      selected = found;
-      showStrip(range, "", [
-        {
-          label: "Highlight",
-          act: function () {
-            takeSelected(false);
-          },
-        },
-        {
-          label: "Note",
-          act: function () {
-            takeSelected(true);
-          },
-        },
-      ]);
+      if (found.quote.length > LONGEST_MARK) showPop(lastBox(range), "Too much to mark at once.", []);
+      else addMark(found);
+      selection.removeAllRanges();
     };
 
     document.addEventListener("selectionchange", function () {
       clearTimeout(settling);
-      settling = setTimeout(selectionSettled, prefs.marking === "mode" ? 800 : 250);
+      settling = setTimeout(selectionSettled, 800);
     });
     document.addEventListener("pointerdown", function () {
       pointerDown = true;
@@ -1254,6 +1244,22 @@
       document.addEventListener(name, function () {
         pointerDown = false;
       });
+    });
+
+    var pen = document.createElement("button");
+    pen.type = "button";
+    pen.className = "bar-button mark-pen";
+    pen.hidden = true;
+    pen.setAttribute("aria-label", "Mark what is selected");
+    pen.setAttribute("aria-pressed", "false");
+    pen.innerHTML =
+      '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    bar.querySelector("[data-open='settings']").before(pen);
+    pen.addEventListener("click", function () {
+      pen.setAttribute("aria-pressed", root.toggleAttribute("data-marking"));
+      // Not saved, and the server may be back: a tap here is also a way of trying again.
+      send();
     });
 
     // ---- A tap on a mark ----
@@ -1267,7 +1273,7 @@
           label: mark.note ? "Edit note" : "Add note",
           act: function () {
             hidePop();
-            editNote(mark, false);
+            editNote(mark);
           },
         },
         {
@@ -1279,8 +1285,7 @@
               return;
             }
             hidePop();
-            marks.splice(marks.indexOf(mark), 1);
-            marksChanged();
+            removeMark(mark);
           },
         },
       ]);
@@ -1298,7 +1303,7 @@
       true
     );
     doc.addEventListener("click", function (event) {
-      if (prefs.marking === "off" || event.defaultPrevented) return;
+      if (event.defaultPrevented) return;
       // Anything that does something of its own keeps its tap, marked or not.
       if (event.target.closest("a, button, summary, input")) return;
       var hit = String(window.getSelection()) ? null : markAt(event.clientX, event.clientY);
@@ -1307,35 +1312,152 @@
       if (hit || dismissed === event) event.preventDefault();
     });
 
-    // ---- The marking mode's switch ----
+    // ---- The list of what is marked ----
+    // In reading order, each a way to its place; then the marks whose words are no longer
+    // in the document, which have no place to go to and can only be read or removed.
 
-    var pen = document.createElement("button");
-    pen.type = "button";
-    pen.className = "bar-button mark-pen";
-    pen.setAttribute("aria-label", "Mark what is selected");
-    pen.setAttribute("aria-pressed", "false");
-    pen.innerHTML =
-      '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" ' +
+    var listButton = document.createElement("button");
+    listButton.type = "button";
+    listButton.className = "bar-button mark-list";
+    listButton.hidden = true;
+    listButton.setAttribute("aria-label", "Notes");
+    listButton.innerHTML =
+      '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6" ' +
       'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    bar.querySelector("[data-open='settings']").before(pen);
-    pen.addEventListener("click", function () {
-      pen.setAttribute("aria-pressed", root.toggleAttribute("data-marking"));
-    });
+    pen.before(listButton);
 
-    applyMarking = function () {
-      pen.hidden = prefs.marking !== "mode";
-      if (pen.hidden) {
-        root.removeAttribute("data-marking");
-        pen.setAttribute("aria-pressed", "false");
+    var list = document.createElement("dialog");
+    list.className = "sheet";
+    list.id = "notes";
+    list.setAttribute("aria-label", "Notes");
+    list.innerHTML =
+      '<div class="sheet-panel" tabindex="-1" autofocus><header class="sheet-head"><h2>Notes</h2>' +
+      '<button type="button" data-close>Done</button></header><div class="notes"></div></div>';
+    document.body.appendChild(list);
+
+    var goToMark = function (range) {
+      var place = range.startContainer.parentElement;
+      unfoldFor(place);
+      // Code that is folded away, and output cut to its first lines.
+      for (var shut = place.closest("details:not([open])"); shut; shut = place.closest("details:not([open])")) {
+        shut.open = true;
       }
-      selected = null;
-      hidePop();
-      hideStrip();
-      paint();
+      var clamped = place.closest("pre.clamped");
+      if (clamped) clamped.classList.remove("clamped");
+      holdBar = Date.now() + 600;
+      var top = window.scrollY + range.getBoundingClientRect().top - readingLine() - 2 * lineHeight();
+      window.scrollTo({ top: top, behavior: "instant" });
+      lastY = window.scrollY;
+      leaveTurns();
+      updatePager();
     };
 
-    marks = loadMarks();
-    applyMarking();
+    var listEntry = function (mark, range) {
+      var entry = document.createElement(range ? "a" : "div");
+      entry.className = "noted";
+      var quote = document.createElement("q");
+      quote.textContent = mark.quote.length > 160 ? mark.quote.slice(0, 160) + "…" : mark.quote;
+      entry.appendChild(quote);
+      if (mark.note) {
+        var note = document.createElement("span");
+        note.textContent = mark.note;
+        entry.appendChild(note);
+      }
+      if (range) {
+        entry.href = "#";
+        entry.addEventListener("click", function (event) {
+          event.preventDefault();
+          list.close();
+          goToMark(range);
+        });
+      } else {
+        var remove = toolButton("Remove");
+        remove.addEventListener("click", function () {
+          removeMark(mark);
+          showList();
+        });
+        entry.appendChild(remove);
+      }
+      return entry;
+    };
+
+    var showList = function () {
+      var body = list.querySelector(".notes");
+      body.textContent = "";
+      painted.forEach(function (found) {
+        body.appendChild(listEntry(found.mark, found.range));
+      });
+      var lost = marks.filter(function (mark) {
+        return !painted.some(function (found) {
+          return found.mark === mark;
+        });
+      });
+      if (lost.length) {
+        var heading = document.createElement("h3");
+        heading.textContent = "No longer in the text";
+        body.appendChild(heading);
+        lost.forEach(function (mark) {
+          body.appendChild(listEntry(mark, null));
+        });
+      }
+      if (!marks.length) list.close();
+    };
+
+    listButton.addEventListener("click", function () {
+      hidePop();
+      showList();
+      openSheet(list);
+    });
+    list.addEventListener("click", function (event) {
+      if (event.target === list || event.target.closest("[data-close]")) list.close();
+    });
+
+    // ---- Starting ----
+    // The marks are asked for after the page is up, and the pen appears when they arrive.
+    // A server that keeps no notes says so here, and then there is nothing to mark with.
+
+    // What the trial of this kept in the browser, taken along once.
+    var TRIAL = "lectern:notes:" + doc.dataset.path;
+
+    fetchMarks()
+      .then(function (kept) {
+        rev = kept.rev;
+        marks = kept.notes;
+        pen.hidden = false;
+        try {
+          (JSON.parse(localStorage.getItem(TRIAL)) || []).forEach(function (mark) {
+            var known = marks.some(function (other) {
+              return other.id === mark.id;
+            });
+            if (known || !mark.id || !mark.quote) return;
+            marks.push(mark);
+            changes[mark.id] = mark;
+          });
+          localStorage.removeItem(TRIAL);
+        } catch (e) {}
+        paint();
+        send();
+      })
+      .catch(function () {});
+
+    // Coming back to the page: what another device has marked since, unless something
+    // here is still waiting to be saved.
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState !== "visible" || pen.hidden) return;
+      if (sending || Object.keys(changes).length) {
+        send();
+        return;
+      }
+      fetchMarks()
+        .then(function (kept) {
+          if (kept.rev === rev || sending || Object.keys(changes).length) return;
+          rev = kept.rev;
+          marks = kept.notes;
+          hidePop();
+          paint();
+        })
+        .catch(function () {});
+    });
   }
 
   // ---- Reading position ----

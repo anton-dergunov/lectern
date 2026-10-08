@@ -5,6 +5,7 @@
 port = 8642
 lab_port = 8888
 extra_hosts = []            # other names this Mac is reached by, e.g. its ts.net name
+notes = false               # only to switch highlights and notes off; they are on without it
 
 [roots]
 "agent-memory-eval" = "~/projects/writing/agent-memory-eval"
@@ -33,6 +34,8 @@ class Config:
     extra_hosts: list[str] = field(default_factory=list)
     # The JupyterLab to run for `lectern lab` when the folder has no environment of its own.
     lab_command: str = ""
+    # Whether text can be marked and remarked on, which has the server write a file.
+    notes: bool = True
     roots: dict[str, Path] = field(default_factory=dict)
 
 
@@ -63,6 +66,7 @@ def load(path: Path | None = None) -> Config:
         config.lab_port = int(data.get("lab_port", config.lab_port))
         config.extra_hosts = [str(host) for host in data.get("extra_hosts", [])]
         config.lab_command = str(data.get("lab_command", ""))
+        config.notes = data.get("notes", True) is not False
         roots = data.get("roots", {})
         config.roots = {str(name): Path(str(where)).expanduser() for name, where in roots.items()}
     except (TypeError, ValueError, AttributeError) as error:
@@ -87,6 +91,8 @@ def save(config: Config, path: Path | None = None) -> None:
     ]
     if config.lab_command:
         lines.append(f"lab_command = {json.dumps(config.lab_command)}")
+    if not config.notes:
+        lines.append("notes = false")
     lines += ["", "[roots]"]
     lines += [
         f"{json.dumps(name)} = {json.dumps(_short(where))}"

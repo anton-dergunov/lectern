@@ -137,17 +137,6 @@
         <button type="button" data-pref="hideCode" data-value="true">Hidden</button>
       </div>
     </section>
-{# Marks are kept where lectern serves the pages; a published site offers none. #}
-{% if not static_site %}
-    <section class="setting" data-marking-setting>
-      <h3>Marking text</h3>
-      <div class="choice">
-        <button type="button" data-pref="marking" data-value="bar">On selection</button>
-        <button type="button" data-pref="marking" data-value="mode">Marking mode</button>
-        <button type="button" data-pref="marking" data-value="off">Off</button>
-      </div>
-    </section>
-{% endif %}
     <section class="setting" data-follow-setting>
       <h3>When the file changes</h3>
       <div class="choice">

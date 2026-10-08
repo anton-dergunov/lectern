@@ -81,6 +81,21 @@ def test_assets_are_linked_relative_to_each_page(src: Path, tmp_path: Path):
         assert '"/_static' not in page.read_text(), page
 
 
+def test_nobodys_notes_are_published(src: Path, tmp_path: Path):
+    from lectern import notes
+
+    note = {"id": "a1", "cell": "c-x", "quote": "The opening paragraph.", "note": "PRIVATE REMARK"}
+    notes.save(src / "study" / "first.ipynb", [note], "")
+    notes.save(src / "docs" / "notes.md", [note], "")
+    out = tmp_path / "site"
+    build(src, out, options())
+
+    assert not [name for name in files(out) if "notes.json" in name]
+    for name in files(out):
+        if name.endswith((".html", ".js", ".json")):
+            assert "PRIVATE REMARK" not in (out / name).read_text(), name
+
+
 def test_pages_stand_alone_without_a_server(src: Path, tmp_path: Path):
     out = tmp_path / "site"
     build(src, out, options())

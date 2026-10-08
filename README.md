@@ -13,6 +13,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
 - sections that fold: a marker beside each heading hides everything under it, and the contents list can collapse the whole notebook to its outline and open the part you pick;
 - a way back: after following a link to another document, the arrow in the top bar returns to the one you came from, at the place you left it, and a second arrow goes forward again;
+- highlights and notes: switch on the pen in the top bar and whatever you select is highlighted; tap a highlight to write a note on it. They are kept in a file beside the notebook, so they are there on every device you read from, and `lectern notes` prints them as markdown;
 - long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
 - reading settings saved per device, starting from sizes that suit a tablet, a phone, a desktop or an e-ink reader: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
 - an e-ink theme, chosen by itself on e-ink readers: black on white, nothing animated, and pages turned with buttons, a tap on either edge of the screen, or the page keys instead of scrolling. A page starts and ends on a whole line, and begins with the last two lines of the page before. For an e-ink screen with colour it can colour code and printed output; pictures are in colour either way. A tap on the page number hides the top bar, and another brings it back;
@@ -26,11 +27,11 @@ Notebooks are shown as they were last saved, including ones you have not committ
 
 A notebook with its outputs saved is a document, and a tablet is a better place to read a document than a laptop. JupyterLab on a touch screen gets in the way of that: scrolling selects cells, menus close under the finger, and every device needs a token. Rendering to GitHub Pages only covers what is already committed and pushed.
 
-Lectern only reads. It never starts a kernel and never runs a cell, which is why it needs no password or token.
+Lectern never starts a kernel and never runs a cell, which is why it needs no password or token. The only thing it writes is the file of highlights and notes you make while reading, and that can be switched off.
 
 ## How it works
 
-Notebooks are converted with nbconvert, using a template of lectern's own that produces plain HTML for the page shell and stylesheet in this repository. The server is Python's standard library HTTP server and answers only `GET` and `HEAD`. Rendered pages are kept in memory and re-rendered when the file changes on disk.
+Notebooks are converted with nbconvert, using a template of lectern's own that produces plain HTML for the page shell and stylesheet in this repository. The server is Python's standard library HTTP server and answers only `GET` and `HEAD`, apart from the one request that saves a document's notes. Rendered pages are kept in memory and re-rendered when the file changes on disk.
 
 What the server will hand out is limited to notebooks, markdown files and images under the directories you serve. Hidden files, paths that leave the directory (including through symlinks) and every other file type get a 404. Requests whose `Host` header is not this machine's `.local` name, `localhost` or an IP address are refused.
 
@@ -66,6 +67,23 @@ If lectern is stopped while a page is open, following a link shows "Lectern is n
 Running `lectern serve` while lectern is already running does not start a second one. It prints the address of the folder you are in if that is being served, and says how to get it served if not.
 
 With **Reload automatically** switched on in a page's settings, the page reloads by itself, in the same place, when the notebook is saved again. It is off by default, and not offered in the e-ink theme.
+
+### Highlights and notes
+
+The pen in the top bar switches marking on. While it is on, select some text and it is highlighted when you let go: on a touch screen, press on a word and drag to where the passage ends. Tap a highlight to add a note to it, read the note, or remove it. Once a document has marks, a second button lists them, each a way back to its place.
+
+Marks are saved on the laptop, in a file beside the document: `analysis.ipynb` gets `analysis.notes.json`. That makes them the same on every device, and lets them travel with the repository if you commit the file; add `*.notes.json` to `.gitignore` if you would rather they did not. If the notebook changes, a mark stays with its words; one whose words are gone is kept and listed apart.
+
+A red dot on the pen means something marked has not reached the laptop yet. It is sent as soon as lectern can be reached again.
+
+```sh
+lectern notes notebooks/analysis.ipynb    # what was marked, as markdown
+lectern notes                             # the same for every document under this folder
+```
+
+Each passage is printed under its heading, with the cell number for code, followed by the note made on it.
+
+Saving a mark is the one thing a device can change on the laptop, and anyone who can reach lectern can add or delete marks. To keep lectern to reading only, start it with `lectern serve --no-notes`, or put `notes = false` in `~/.config/lectern/config.toml`. Sites made with `lectern build` have no marking and never include anyone's notes.
 
 ### Folders you read often
 

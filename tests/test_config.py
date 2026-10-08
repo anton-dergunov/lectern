@@ -33,6 +33,16 @@ def test_what_is_saved_is_what_is_loaded(tmp_path: Path):
     assert '"home-project" = "~/some/project"' in config.config_path().read_text()
 
 
+def test_notes_are_on_unless_switched_off():
+    assert config.load().notes is True
+    config.save(config.Config())
+    assert "notes" not in config.config_path().read_text()
+
+    config.save(config.Config(notes=False))
+    assert "notes = false" in config.config_path().read_text()
+    assert config.load().notes is False
+
+
 def test_add_and_remove(tmp_path: Path):
     first, second = tmp_path / "notes", tmp_path / "elsewhere" / "notes"
     first.mkdir()

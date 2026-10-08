@@ -129,6 +129,8 @@ def _serve(args: argparse.Namespace) -> int:
             tuple(saved.extra_hosts),
             verbose=args.verbose,
             settings=config.config_path() if args.all else None,
+            # With --all the saved setting is followed while running; --no-notes overrules it.
+            notes=not args.no_notes and (args.all or saved.notes),
         )
     except OSError as error:
         if error.errno != errno.EADDRINUSE:
@@ -145,6 +147,24 @@ def _serve(args: argparse.Namespace) -> int:
         print()
     finally:
         server.server_close()
+    return 0
+
+
+def _notes(args: argparse.Namespace) -> int:
+    from . import notes
+    from .paths import DOC_SUFFIXES
+
+    path = Path(args.path).expanduser()
+    if path.is_dir():
+        documents = [doc for doc in library.discover(path) if notes.notes_path(doc).exists()]
+        if not documents:
+            print(f"Nothing is marked under {path}.", file=sys.stderr)
+            return 0
+    elif path.is_file() and path.suffix.lower() in DOC_SUFFIXES:
+        documents = [path]
+    else:
+        return _fail(f"{path} is not a notebook, a markdown file or a folder")
+    print("\n".join(notes.to_markdown(doc) for doc in documents), end="")
     return 0
 
 
@@ -279,6 +299,11 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="0.0.0.0", help="address to listen on")
     serve.add_argument("--qr", action="store_true", help="also show the address as a QR code")
     serve.add_argument("--verbose", action="store_true", help="print each request")
+    serve.add_argument(
+        "--no-notes",
+        action="store_true",
+        help="read only: no highlights or notes, and nothing is written",
+    )
     serve.set_defaults(run=_serve)
 
     add = commands.add_parser(
@@ -296,6 +321,16 @@ def _parser() -> argparse.ArgumentParser:
     remove.set_defaults(run=_remove)
 
     commands.add_parser("list", help="show the saved folders").set_defaults(run=_list)
+
+    noted = commands.add_parser(
+        "notes",
+        help="print the highlights and notes made on a document, as markdown",
+        description="Print what was marked while reading PATH: each passage under its "
+        "heading and cell number, with the remark made on it. For a folder, every "
+        "document in it that has notes.",
+    )
+    noted.add_argument("path", nargs="?", default=".", metavar="PATH", help="default: .")
+    noted.set_defaults(run=_notes)
 
     agent = commands.add_parser(
         "agent",
@@ -348,9 +383,10 @@ def main(argv: list[str] | None = None) -> int:
     from .agent import AgentError
     from .build import BuildError
     from .lab import LabError
+    from .notes import NotesError
 
     args = _parser().parse_args(argv)
     try:
         return args.run(args)
-    except (config.ConfigError, BuildError, AgentError, LabError) as error:
+    except (config.ConfigError, BuildError, AgentError, LabError, NotesError) as error:
         return _fail(error)

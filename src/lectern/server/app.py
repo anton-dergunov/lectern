@@ -1,4 +1,7 @@
-"""The HTTP server: listings, rendered documents, images and assets. GET and HEAD only."""
+"""The HTTP server: listings, rendered documents, images and assets.
+
+GET and HEAD only, but for one thing: a PUT that replaces the notes kept on a document.
+"""
 
 import ipaddress
 import json
@@ -12,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
-from .. import APP_NAME, __version__, config, library, netinfo
+from .. import APP_NAME, __version__, config, library, netinfo, notes
 from ..cache import RenderCache, RenderError
 from ..config import DEFAULT_PORT
 from ..paths import DOC_SUFFIXES, resolve
@@ -39,6 +42,9 @@ CONTENT_TYPES = {
     ".webp": "image/webp",
 }
 HTML = "text/html; charset=utf-8"
+JSON = "application/json"
+# The notes of one document, as sent: far more than a reader's remarks come to.
+LARGEST_NOTES = 1024 * 1024
 
 # What the "not running" page loads, for the service worker to keep with it.
 OFFLINE_ASSETS = [
@@ -72,12 +78,17 @@ class ReaderServer(ThreadingHTTPServer):
         extra_hosts: tuple[str, ...] = (),
         verbose: bool = False,
         settings: Path | None = None,
+        notes: bool = True,
     ) -> None:
         super().__init__(address, ReaderHandler)
         self.cache = RenderCache(render_document)
         self.verbose = verbose
         self._own_hosts = {"localhost", f"{netinfo.local_hostname()}.local".lower()}
         self._roots = roots
+        # Whether marks may be kept at all, and whether they are now: with a settings
+        # file, its `notes` is followed like the folders.
+        self._notes_allowed = notes
+        self._notes = notes
         self.hosts = self._own_hosts | {host.lower() for host in extra_hosts}
         # With a settings file, the saved folders are what is served, and the file is
         # read again whenever it changes: `lectern add` reaches a running server that way,
@@ -92,6 +103,12 @@ class ReaderServer(ThreadingHTTPServer):
         if self.settings is not None:
             self._follow_settings()
         return self._roots
+
+    @property
+    def notes(self) -> bool:
+        if self.settings is not None:
+            self._follow_settings()
+        return self._notes
 
     def _follow_settings(self) -> None:
         with self._settings_lock:
@@ -114,6 +131,7 @@ class ReaderServer(ThreadingHTTPServer):
                 return
             self._roots = {name: path for name, path in saved.roots.items() if path.is_dir()}
             self.hosts = self._own_hosts | {host.lower() for host in saved.extra_hosts}
+            self._notes = self._notes_allowed and saved.notes
 
 
 class ReaderHandler(BaseHTTPRequestHandler):
@@ -126,10 +144,17 @@ class ReaderHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         self._respond()
 
+    def do_PUT(self) -> None:
+        # The one address that takes a write. Everywhere else PUT is refused like the rest.
+        if urlsplit(self.path).path.startswith("/_notes/"):
+            self._respond(self._put_notes)
+        else:
+            self._refuse()
+
     def _refuse(self) -> None:
         self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"", "text/plain", {"Allow": "GET, HEAD"})
 
-    do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = _refuse
+    do_POST = do_PATCH = do_DELETE = do_OPTIONS = _refuse
 
     def log_message(self, format: str, *args) -> None:
         if self.server.verbose:
@@ -137,9 +162,9 @@ class ReaderHandler(BaseHTTPRequestHandler):
 
     # ---- Routing ----
 
-    def _respond(self) -> None:
+    def _respond(self, route=None) -> None:
         try:
-            self._route()
+            (route or self._route)()
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception:
@@ -164,8 +189,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             if ipaddress.ip_address(self.client_address[0]).is_loopback:
                 ping["paths"] = {name: str(path) for name, path in self.server.roots.items()}
                 ping["saved"] = self.server.settings is not None
-            headers = {"Cache-Control": "no-store"}
-            self._send(HTTPStatus.OK, json.dumps(ping).encode(), "application/json", headers)
+            self._json(HTTPStatus.OK, ping)
         elif path == "/manifest.webmanifest":
             self._send(HTTPStatus.OK, _manifest(), "application/manifest+json")
         elif path.startswith("/_static/"):
@@ -178,6 +202,8 @@ class ReaderHandler(BaseHTTPRequestHandler):
             self._service_worker()
         elif path == "/_home":
             self._home()
+        elif path.startswith("/_notes/"):
+            self._get_notes(path)
         else:
             self._under_root(raw, path)
 
@@ -259,6 +285,79 @@ class ReaderHandler(BaseHTTPRequestHandler):
             self._document(root_name, rel, target)
         else:
             self._image(target)
+
+    # ---- Notes ----
+
+    def _noted(self, path: str) -> Path | None:
+        """The served document that `/_notes/<root>/<path>` is about, if notes are kept."""
+        if not self.server.notes:
+            return None
+        root_name, _, rel = path.removeprefix("/_notes/").partition("/")
+        root = self.server.roots.get(root_name)
+        target = resolve(root, rel) if root else None
+        if target is None or not target.is_file() or target.suffix.lower() not in DOC_SUFFIXES:
+            return None
+        return target
+
+    def _json(self, status: HTTPStatus, data: dict) -> None:
+        self._send(status, json.dumps(data).encode(), JSON, {"Cache-Control": "no-store"})
+
+    def _get_notes(self, path: str) -> None:
+        doc = self._noted(path)
+        if doc is None:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "no notes are kept here"})
+            return
+        try:
+            self._json(HTTPStatus.OK, notes.load(doc))
+        except notes.NotesError as error:
+            self._json(HTTPStatus.UNPROCESSABLE_ENTITY, {"error": str(error)})
+
+    def _put_notes(self) -> None:
+        """Replace one document's notes. The request says which document, never which file.
+
+        There is no token, so what is asked of the sender is what a browser on one of
+        lectern's own pages does and a page from elsewhere cannot: an Origin that is this
+        server, and a JSON body, which a foreign page may not send without asking first
+        (and the asking, OPTIONS, is refused).
+        """
+        # What was sent is taken off the wire before anything is said about it: an answer
+        # given with the body unread can be lost to the sender.
+        self.close_connection = True
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self._json(HTTPStatus.LENGTH_REQUIRED, {"error": "no Content-Length"})
+            return
+        if not 0 <= length <= LARGEST_NOTES:
+            unread = min(max(length, 0), 16 * LARGEST_NOTES)
+            while unread > 0:
+                unread -= len(self.rfile.read(min(unread, 65536))) or unread
+            self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "too many notes"})
+            return
+        body = self.rfile.read(length)
+        if not self._host_allowed():
+            self._send(HTTPStatus.MISDIRECTED_REQUEST, b"Unknown host\n", "text/plain")
+            return
+        doc = self._noted(unquote(urlsplit(self.path).path))
+        if doc is None:
+            self._json(HTTPStatus.NOT_FOUND, {"error": "no notes are kept here"})
+            return
+        origin = urlsplit(self.headers.get("Origin", "")).netloc.lower()
+        if not origin or origin != self.headers.get("Host", "").strip().lower():
+            self._json(HTTPStatus.FORBIDDEN, {"error": "not from one of lectern's own pages"})
+            return
+        if self.headers.get_content_type() != JSON:
+            self._json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"error": "notes are sent as JSON"})
+            return
+        try:
+            sent = json.loads(body)
+            kept = notes.save(doc, sent["notes"], sent["rev"])
+        except notes.Stale as stale:
+            self._json(HTTPStatus.CONFLICT, stale.current)
+        except (ValueError, KeyError, TypeError, notes.NotesError) as error:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+        else:
+            self._json(HTTPStatus.OK, kept)
 
     # ---- Pages ----
 
@@ -418,7 +517,9 @@ def make_server(
     extra_hosts: tuple[str, ...] = (),
     verbose: bool = False,
     settings: Path | None = None,
+    notes: bool = True,
 ) -> ReaderServer:
     """`settings` is the file of saved folders to serve and keep following; `roots` is
-    then only what is served until it has been read."""
-    return ReaderServer((host, port), roots, extra_hosts, verbose, settings)
+    then only what is served until it has been read. `notes` false keeps the server to
+    reading: no marks are handed out or taken."""
+    return ReaderServer((host, port), roots, extra_hosts, verbose, settings, notes)

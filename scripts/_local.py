@@ -13,14 +13,17 @@ class LocalServer:
     """Serves `root` on 127.0.0.1. `stop()` and `start()` keep the same port, so a page
     that was open before a stop finds the server again after a start."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, notes: bool = True) -> None:
+        self.notes = notes
         self.root = root.resolve()
         self.name = self.root.name
         self.port = 0
         self._server: ReaderServer | None = None
 
     def start(self) -> None:
-        self._server = make_server({self.name: self.root}, host="127.0.0.1", port=self.port)
+        self._server = make_server(
+            {self.name: self.root}, host="127.0.0.1", port=self.port, notes=self.notes
+        )
         self.port = self._server.server_address[1]
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
 
