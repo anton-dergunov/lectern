@@ -413,6 +413,16 @@
   var trim = null;
   var trimmed = 0;
   var turnedTo = -1;
+  // The turns made so far, each as where it left and where it arrived. Forward and back
+  // are worked out differently (one from the bottom of the page, one from the top), so a
+  // turn back is not the reverse of the turn that came before it; it retraces that turn
+  // instead, and Previous then Next ends on the page it started from.
+  var turns = [];
+
+  function leaveTurns() {
+    setTrim(0);
+    turns = [];
+  }
 
   function setTrim(height) {
     trimmed = height;
@@ -474,10 +484,16 @@
     var whole = doc && pager && typeof direction === "number";
     var top = bar.offsetHeight;
     var bottom = window.innerHeight - (pager ? pager.offsetHeight : 0);
-    var to = window.scrollY + direction * pageStep();
+    var from = window.scrollY;
+    var to = from + direction * pageStep();
     if (direction === "start") to = 0;
     if (direction === "end") to = lastScroll();
-    if (whole && direction > 0) {
+    var made = turns[turns.length - 1];
+    var retraced = whole && made && made.direction === -direction && Math.abs(made.to - from) <= 1;
+    if (!whole) turns = [];
+    if (retraced) {
+      to = turns.pop().from;
+    } else if (whole && direction > 0) {
       // From the first line that is not fully in view, less the lines carried over.
       // Under the strip is the line it was put there to cover.
       var unread = bottom - trimmed;
@@ -489,9 +505,13 @@
     setTrim(0);
     window.scrollTo({ top: to, behavior: "instant" });
     if (whole) {
-      var first = lineAt(top + 1);
+      var first = !retraced && lineAt(top + 1);
       if (first && first.top < top) {
         window.scrollTo({ top: window.scrollY + first.top - top - 2, behavior: "instant" });
+      }
+      if (!retraced && Math.abs(window.scrollY - from) > 1) {
+        turns.push({ from: from, to: window.scrollY, direction: direction });
+        if (turns.length > 200) turns.shift();
       }
       var last = window.scrollY < lastScroll() - 1 && lineAt(bottom - 1);
       if (last && last.bottom > bottom) setTrim(Math.ceil(bottom - last.top) + 1);
@@ -502,7 +522,7 @@
   function updatePager() {
     if (!pager || !eink()) return;
     // The strip belongs to the page a turn arrived at; any other move does away with it.
-    if (trimmed && Math.abs(window.scrollY - turnedTo) > 1) setTrim(0);
+    if (Math.abs(window.scrollY - turnedTo) > 1) leaveTurns();
     var step = pageStep();
     var last = lastScroll();
     var y = Math.min(last, Math.max(0, window.scrollY));
@@ -534,7 +554,11 @@
       }
     });
     window.addEventListener("scroll", updatePager, { passive: true });
-    window.addEventListener("resize", updatePager);
+    window.addEventListener("resize", function () {
+      // Nothing is where it was.
+      leaveTurns();
+      updatePager();
+    });
     window.addEventListener("load", updatePager);
 
     var EDGE = 0.3;
@@ -700,7 +724,7 @@
       else window.scrollBy({ top: held.getBoundingClientRect().top - before, behavior: "instant" });
       lastY = window.scrollY;
     }
-    setTrim(0);
+    leaveTurns();
     updatePager();
   }
 
@@ -718,7 +742,7 @@
     }
     if (changed) {
       applyFolds();
-      setTrim(0);
+      leaveTurns();
     }
     return changed;
   }

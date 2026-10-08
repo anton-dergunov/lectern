@@ -369,7 +369,20 @@ def run(engine_name: str, playwright) -> bool:
         page.mouse.click(790, 500)
         page.mouse.click(30, 500)
         back = page.evaluate("window.scrollY")
-        results.append(check("a tap on the left edge turns back", abs(back - moved) < 80, back))
+        results.append(check("a tap on the left edge turns back", abs(back - moved) < 1, back))
+        # Through code and printed output, where a line is not the height of a line of prose.
+        strayed = []
+        for _ in range(7):
+            page.get_by_role("button", name="Next").click()
+            here = page.evaluate(PAGE_EDGES)
+            page.get_by_role("button", name="Previous").click()
+            page.get_by_role("button", name="Previous").click()
+            page.get_by_role("button", name="Next").click()
+            page.get_by_role("button", name="Next").click()
+            if page.evaluate(PAGE_EDGES) != here:
+                strayed.append((here, page.evaluate(PAGE_EDGES)))
+        results.append(check("back and then forward again is the same page", not strayed, strayed))
+        back = page.evaluate("window.scrollY")
         page.mouse.click(400, 500)
         results.append(
             check("a tap in the middle does nothing", page.evaluate("window.scrollY") == back)
