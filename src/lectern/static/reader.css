@@ -148,7 +148,9 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
   background: none;
   cursor: pointer;
 }
-.bar-button.back { margin-left: -13px; }
+.bar-button.back, .bar-button.forward:first-child { margin-left: -13px; }
+/* Added by reader.js once there is a document to go forward to. */
+.bar-button.back + .forward { margin-left: -10px; }
 .bar-button:last-child { margin-right: -11px; }
 .crumbs {
   display: flex;
@@ -193,6 +195,9 @@ a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1
    shrunk to fit by Safari on the iPad, text and all. Not the whole column: the cell numbers
    sit in the margin. */
 .cell.md, .out { overflow-x: clip; }
+/* The clip is at the padding edge: this much of the margin stays open, for the markers
+   that fold a section. */
+.cell.md { margin-left: -2rem; padding-left: 2rem; }
 
 /* Room for the bar when a link or the contents list jumps to a heading. */
 .cell, h1, h2, h3, h4 { scroll-margin-top: 3.4rem; }
@@ -222,6 +227,39 @@ h4, h5, h6 { font-size: 1rem; margin-top: 1.5em; }
 .doc > .cell:first-child > :first-child { margin-top: 0.2em; }
 /* Headings keep their ids for linking; the pilcrow after each one is not shown. */
 .anchor-link { display: none; }
+
+/* Folding a section. reader.js puts the marker in each heading that has something under
+   it: in the margin where the screen has one, otherwise before the heading's text. The
+   clamp flips between the two at the width where 2.6rem of margin appears. */
+.fold {
+  position: relative;
+  width: 1.2rem;
+  height: 1.22em;
+  margin: 0 0.3rem 0 clamp(-1.5rem, (2.6rem - (100vw - var(--measure)) / 2) * 9999, 0px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-muted);
+  font-size: inherit;
+  vertical-align: top;
+  cursor: pointer;
+}
+/* A target for a finger, larger than the marker. */
+.fold::after { content: ""; position: absolute; inset: -9px -10px; }
+.fold::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: -0.3rem 0 0 -0.2rem;
+  border: solid transparent;
+  border-width: 0.3rem 0 0.3rem 0.45rem;
+  border-left-color: currentColor;
+}
+.fold[aria-expanded="true"]::before { transform: rotate(90deg); }
+@media screen {
+  .folded-away { display: none; }
+}
 
 strong, b { color: var(--fg-strong); font-weight: 700; }
 ul, ol { padding-left: 1.4em; }
@@ -540,6 +578,16 @@ dialog.sheet::backdrop { background: var(--shade); }
 .toc .toc-2 { padding-left: 0.7rem; }
 .toc .toc-3 { padding-left: 1.7rem; font-size: 0.74rem; }
 .toc a[aria-current] { border-left-color: var(--accent); color: var(--fg-strong); }
+/* A folded section, marked as its heading is on the page. */
+.toc a[data-folded]::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.5em;
+  border: solid transparent;
+  border-width: 0.26em 0 0.26em 0.4em;
+  border-left-color: var(--fg-muted);
+}
+.sheet [data-folds] { margin-top: 0.5rem; }
 
 .setting { margin-top: 1.3rem; }
 .setting h3 { margin: 0 0 0.5rem; font: 400 0.74rem/1.3 var(--font-ui); color: var(--fg); letter-spacing: 0; }
@@ -682,6 +730,17 @@ dialog.sheet::backdrop { background: var(--shade); }
 .pager > * + * { border-left: 1px solid var(--edge-faint); }
 .pager [data-turn="start"], .pager [data-turn="end"] { flex: 0 0 13%; }
 .pager output { cursor: pointer; }
+/* Over the line the footer would cut through; reader.js sets how tall after each turn. */
+.page-trim { display: none; }
+[data-theme^="eink"] .page-trim {
+  position: fixed;
+  right: 0;
+  left: 0;
+  z-index: 9;
+  display: block;
+  background: var(--bg);
+  pointer-events: none;
+}
 [data-theme^="eink"] .doc,
 [data-theme^="eink"] .listing { padding-bottom: calc(5rem + 48px + env(safe-area-inset-bottom)); }
 
@@ -695,4 +754,5 @@ dialog.sheet::backdrop { background: var(--shade); }
 @media print {
   .bar { display: none; }
   .src > summary { display: none; }
+  .fold { display: none; }
 }

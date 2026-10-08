@@ -69,6 +69,11 @@
 <dialog class="sheet" id="toc" aria-label="Contents">
   <div class="sheet-panel" tabindex="-1" autofocus>
     <header class="sheet-head"><h2>Contents</h2><button type="button" data-close>Done</button></header>
+    {# Shown by the script, which is what folds sections. #}
+    <div class="choice" data-folds hidden>
+      <button type="button" data-fold-all="true">Collapse all</button>
+      <button type="button" data-fold-all="false">Expand all</button>
+    </div>
     <nav class="toc">
 {% for heading in toc %}
       <a class="toc-{{ heading.level }}" href="#{{ heading.id | urlencode }}">{{ heading.text }}</a>

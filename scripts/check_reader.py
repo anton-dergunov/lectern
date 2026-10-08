@@ -4,8 +4,8 @@
 
 Runs against the test fixtures on a local port, in Chromium and WebKit. Checks the top
 bar hiding, the reading position surviving a reload and a text-size change, settings,
-the contents list, long output, the e-ink theme's page turning, and what happens when the
-server stops.
+the contents list, folding sections, long output, the e-ink theme's page turning, going
+back and forward between documents, and what happens when the server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
 """
@@ -31,6 +31,39 @@ PLACE = """() => {
   }
 }"""
 
+
+# Lines of text that the bar above or the footer (with the strip over it) below cuts through.
+# The box of a line reaches a little past its letters, so a pixel or two is not a cut.
+CUT_LINES = """() => {
+  const top = document.querySelector('.bar').offsetHeight;
+  const trim = document.querySelector('.page-trim');
+  const bottom = innerHeight - document.querySelector('.pager').offsetHeight
+    - (trim ? trim.offsetHeight : 0);
+  const cut = [];
+  const walker = document.createTreeWalker(document.querySelector('main.doc'), NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node; (node = walker.nextNode()); ) {
+    if (!node.data.trim()) continue;
+    range.selectNodeContents(node);
+    for (const box of range.getClientRects()) {
+      for (const [name, edge] of [['top', top], ['bottom', bottom]]) {
+        if (box.height && box.top < edge - 2 && box.bottom > edge + 2) {
+          cut.push([name, Math.round(box.top), Math.round(box.bottom), edge]);
+        }
+      }
+    }
+  }
+  return cut;
+}"""
+
+# Where the page's first line and the top of the strip are, measured down the document.
+PAGE_EDGES = """() => {
+  const trim = document.querySelector('.page-trim');
+  const bottom = innerHeight - document.querySelector('.pager').offsetHeight
+    - (trim ? trim.offsetHeight : 0);
+  return {top: scrollY + document.querySelector('.bar').offsetHeight, bottom: scrollY + bottom,
+          trim: trim ? trim.offsetHeight : 0};
+}"""
 
 FONT_SIZE = "getComputedStyle(document.documentElement).fontSize"
 
@@ -145,6 +178,51 @@ def run(engine_name: str, playwright) -> bool:
         results.append(check("contents jumps to the heading", landed, top))
         results.append(check("bar stays after the jump", not bar_hidden(page)))
 
+        # ---- Folding sections ----
+        page.evaluate("window.scrollTo(0, 600)")
+        settle(page)
+        heading = page.locator("#Part-2")
+        under = [page.locator("#Part-2 + p"), page.locator("#c-cell-4")]
+        top = "e => e.getBoundingClientRect().top"
+        before = heading.evaluate(top)
+        heading.locator(".fold").click()
+        folded = not any(block.is_visible() for block in under)
+        results.append(check("a heading folds what is under it", folded))
+        next_shown = page.locator("#Part-3").is_visible()
+        results.append(check("up to the next heading of its level", next_shown))
+        results.append(
+            check("and stays where it was", abs(heading.evaluate(top) - before) < 1, before)
+        )
+        page.reload()
+        settle(page)
+        still = not any(block.is_visible() for block in under)
+        results.append(check("folded sections are kept after a reload", still))
+        page.get_by_role("button", name="Contents").click()
+        marked = page.locator("#toc a[data-folded]").all_inner_texts()
+        results.append(check("the contents list marks them", marked == ["Part 2"], marked))
+        page.locator("#toc").get_by_role("button", name="Collapse all").click()
+        shown = page.locator("main.doc .cell.code:visible").count()
+        outline = page.locator("#Part-7").is_visible() and page.locator("h1").is_visible()
+        aside = page.locator("#Aside-1").is_visible()
+        results.append(
+            check("collapse all leaves the outline", shown == 0 and outline and not aside, shown)
+        )
+        page.locator("#toc").get_by_role("link", name="Aside 1").click()
+        settle(page)
+        at = page.locator("#Aside-1").evaluate(top)
+        # With everything else folded the page is too short to bring it to the top.
+        opened = page.locator("#Aside-1 + p").is_visible() and 0 <= at < 600
+        results.append(check("a contents link opens the way to its section", opened, at))
+        results.append(check("and nothing else", not page.locator("#c-cell-4").is_visible()))
+        page.get_by_role("button", name="Contents").click()
+        page.locator("#toc").get_by_role("button", name="Expand all").click()
+        page.locator("#toc").get_by_role("button", name="Done").click()
+        every = page.locator("main.doc .cell.code:visible").count()
+        kept = page.evaluate("Object.keys(localStorage).filter(k => k.startsWith('lectern:fold'))")
+        results.append(check("expand all shows everything again", every == 12 and not kept, every))
+        moved = page.locator("#Aside-1").evaluate(top) - at
+        results.append(check("and keeps the place", abs(moved) < 1, moved))
+
         # ---- Long and wide output ----
         page.goto(server.url("tall-stream.ipynb"))
         lines = page.locator("pre.stream .l")
@@ -257,13 +335,41 @@ def run(engine_name: str, playwright) -> bool:
         results.append(
             check("and counts it", label.inner_text().startswith("2 / "), label.inner_text())
         )
+        results.append(
+            check("on whole lines", not page.evaluate(CUT_LINES), page.evaluate(CUT_LINES))
+        )
+        edges = page.evaluate(PAGE_EDGES)
         page.mouse.click(790, 500)
         results.append(
-            check("a tap on the right edge turns on", page.evaluate("window.scrollY") > moved * 1.9)
+            check("a tap on the right edge turns on", page.evaluate("window.scrollY") > moved * 1.7)
         )
+        # What the footer was about to cut through is on the new page, a line or two down.
+        carried = edges["bottom"] - page.evaluate(PAGE_EDGES)["top"]
+        results.append(check("carrying over the last lines", 30 < carried < 130, carried))
+        cut = []
+        for _ in range(8):
+            page.get_by_role("button", name="Next").click()
+            cut += page.evaluate(CUT_LINES)
+        for _ in range(8):
+            page.get_by_role("button", name="Previous").click()
+            cut += page.evaluate(CUT_LINES)
+        results.append(check("every turn ends on whole lines", not cut, cut))
+        # Not every page ends in the middle of a line; go on to one that does.
+        covered = 0
+        for _ in range(6):
+            page.get_by_role("button", name="Next").click()
+            covered = page.evaluate(PAGE_EDGES)["trim"]
+            if covered:
+                break
+        page.evaluate("window.scrollBy(0, 37)")
+        settle(page)
+        gone = page.evaluate(PAGE_EDGES)["trim"] == 0
+        results.append(check("scrolling by hand uncovers the last line", covered and gone, covered))
+        page.evaluate("window.scrollTo(0, %d)" % moved)
+        page.mouse.click(790, 500)
         page.mouse.click(30, 500)
         back = page.evaluate("window.scrollY")
-        results.append(check("a tap on the left edge turns back", abs(back - moved) < 2, back))
+        results.append(check("a tap on the left edge turns back", abs(back - moved) < 80, back))
         page.mouse.click(400, 500)
         results.append(
             check("a tap in the middle does nothing", page.evaluate("window.scrollY") == back)
@@ -388,7 +494,7 @@ def run(engine_name: str, playwright) -> bool:
         # ---- The server stops while a page is open ----
         page.goto(long_read)
         server.stop()
-        page.get_by_role("link", name="Back to fixtures").click()
+        page.locator(".crumbs a").last.click()
         try:
             expect(page.locator("#offline")).to_contain_text("not running", timeout=6000)
             results.append(check("following a link says lectern is not running", True))
@@ -488,6 +594,59 @@ def run(engine_name: str, playwright) -> bool:
             follower.get_by_role("button", name="Stay as it is").click()
             follower.close()
 
+    # ---- Back and forward between documents ----
+    with tempfile.TemporaryDirectory() as work:
+        shelf = Path(work, "shelf")
+        shelf.mkdir()
+        prose = "Sentence after sentence of prose to read. " * 30
+        first_text = f"# First\n\n{prose}\n\n" * 4 + f"See [the other](second.md).\n\n{prose}\n"
+        Path(shelf, "first.md").write_text(first_text)
+        Path(shelf, "second.md").write_text(f"# Second\n\n{prose}\n")
+        with LocalServer(shelf) as library:
+            walker = context.new_page()
+            walker.on("pageerror", lambda error: errors.append(str(error)))
+            walker.goto(library.url("first.md"))
+            chevron = walker.locator(".bar a.back")
+            fresh = chevron.get_attribute("aria-label") == "Back to shelf"
+            fresh = fresh and walker.locator(".bar a.forward").count() == 0
+            results.append(check("a page opened by itself has the folder behind it", fresh))
+            walker.get_by_role("link", name="the other").scroll_into_view_if_needed()
+            settle(walker)
+            left_at = walker.evaluate("window.scrollY")
+            walker.get_by_role("link", name="the other").click()
+            walker.wait_for_url(library.url("second.md"))
+            walker.get_by_role("link", name="Back to First").click()
+            walker.wait_for_url(library.url("first.md"))
+            settle(walker)
+            returned = walker.evaluate("window.scrollY")
+            same = left_at > 40 and abs(returned - left_at) < 3
+            results.append(
+                check("back returns to the document and the place", same, (left_at, returned))
+            )
+            walker.get_by_role("link", name="Forward to Second").click()
+            walker.wait_for_url(library.url("second.md"))
+            there = walker.locator(".bar a.forward").count() == 0
+            there = there and chevron.get_attribute("aria-label") == "Back to First"
+            results.append(check("forward goes on again", there))
+            walker.go_back()
+            walker.wait_for_url(library.url("first.md"))
+            settle(walker)
+            followed = walker.locator(".bar a.forward").get_attribute("aria-label")
+            results.append(
+                check(
+                    "the browser's own back is followed", followed == "Forward to Second", followed
+                )
+            )
+            walker.locator(".crumbs a").last.click()
+            walker.wait_for_url(library.url(""))
+            results.append(
+                check(
+                    "a new turning forgets the way forward",
+                    walker.locator("a.forward").count() == 0,
+                )
+            )
+            walker.close()
+
     # ---- A static build, opened straight from the disk ----
     with tempfile.TemporaryDirectory() as site:
         build(FIXTURES, Path(site), SiteOptions(title="Fixtures"))
@@ -504,6 +663,14 @@ def run(engine_name: str, playwright) -> bool:
         local.get_by_role("button", name="Dark", exact=True).click()
         results.append(check("and their settings", theme(local) == "solarized-dark", theme(local)))
         local.get_by_role("button", name="Light", exact=True).click()
+        local.locator("#settings").get_by_role("button", name="Done").click()
+        local.get_by_role("link", name="Back to Fixtures").click()
+        local.wait_for_url("**/index.html")
+        local.get_by_role("link", name="Forward to A long read").click()
+        local.wait_for_url("**/long-read.html")
+        local.locator("#Part-1 .fold").click()
+        works = not local.locator("#Part-1 + p").is_visible()
+        results.append(check("back, forward and folding work there too", works))
         results.append(check("nothing blocked by the page's own policy", not blocked, blocked))
         local.close()
 

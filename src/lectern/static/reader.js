@@ -136,6 +136,100 @@
     );
   });
 
+  // ---- Back and forward between documents ----
+  // The pages opened in this tab, kept here and not taken from the browser's history: a
+  // jump inside a page is a history entry too, and going back would step through those
+  // instead of leaving the document. A Home Screen app has no buttons for it anyway.
+
+  var TRAIL = "lectern:trail";
+  var TRAIL_MOVE = "lectern:trail-move";
+  var TRAIL_KEEPS = 50;
+  var address = location.pathname + location.search;
+  var upLink = bar && bar.querySelector("a.back");
+  var up = upLink && { href: upLink.getAttribute("href"), label: upLink.getAttribute("aria-label") };
+
+  function syncTrail(arrival) {
+    var trail = null;
+    var move = null;
+    try {
+      trail = JSON.parse(sessionStorage.getItem(TRAIL));
+      move = sessionStorage.getItem(TRAIL_MOVE);
+      sessionStorage.removeItem(TRAIL_MOVE);
+    } catch (e) {}
+    if (!trail || !Array.isArray(trail.list) || !trail.list[trail.at]) trail = { list: [], at: -1 };
+    function isHere(index) {
+      return Boolean(trail.list[index]) && trail.list[index].url === address;
+    }
+    if (move !== null && isHere(Number(move))) {
+      // One of the two buttons below brought us here.
+      trail.at = Number(move);
+    } else if (isHere(trail.at)) {
+      // A reload.
+    } else if (arrival === "back_forward" && isHere(trail.at - 1)) {
+      trail.at -= 1;
+    } else if (arrival === "back_forward" && isHere(trail.at + 1)) {
+      trail.at += 1;
+    } else {
+      trail.list = trail.list.slice(Math.max(0, trail.at + 2 - TRAIL_KEEPS), trail.at + 1);
+      trail.list.push({ url: address });
+      trail.at = trail.list.length - 1;
+    }
+    trail.list[trail.at].title = document.title;
+    try {
+      sessionStorage.setItem(TRAIL, JSON.stringify(trail));
+    } catch (e) {
+      // Nowhere to keep it: the chevron stays the way up to the folder.
+      return;
+    }
+
+    var previous = trail.list[trail.at - 1];
+    var next = trail.list[trail.at + 1];
+    // On a document the chevron goes back to where the reader came from, and up to the
+    // folder only when they came from nowhere. A listing's chevron always goes up.
+    if (upLink) {
+      var back = doc && previous;
+      upLink.setAttribute("href", back ? previous.url : up.href);
+      upLink.setAttribute("aria-label", back ? "Back to " + previous.title : up.label);
+      if (back) upLink.dataset.trail = trail.at - 1;
+      else delete upLink.dataset.trail;
+    }
+    var forward = bar.querySelector("a.forward");
+    if (next && !forward) {
+      forward = document.createElement("a");
+      forward.className = "bar-button forward";
+      forward.innerHTML =
+        '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      if (upLink) upLink.after(forward);
+      else bar.prepend(forward);
+    }
+    if (next) {
+      forward.setAttribute("href", next.url);
+      forward.setAttribute("aria-label", "Forward to " + next.title);
+      forward.dataset.trail = trail.at + 1;
+    } else if (forward) {
+      forward.remove();
+    }
+  }
+
+  if (bar) {
+    var arrived = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+    syncTrail(arrived ? arrived.type : "");
+    // A page brought back whole by the browser's own back or forward does not load again.
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted) syncTrail("back_forward");
+    });
+    // Says which way the trail is being walked. It is believed on arrival only if the page
+    // at that step is the one that loaded, so a link that led nowhere leaves nothing behind.
+    bar.addEventListener("click", function (event) {
+      var link = event.target.closest("a[data-trail]");
+      if (!link) return;
+      try {
+        sessionStorage.setItem(TRAIL_MOVE, link.dataset.trail);
+      } catch (e) {}
+    });
+  }
+
   // ---- Top bar: out of the way while reading down, back on the way up ----
 
   var lastY = window.scrollY;
@@ -195,7 +289,10 @@
     sheet.querySelectorAll("a[href^='#']").forEach(function (link) {
       link.removeAttribute("aria-current");
       var heading = document.getElementById(decodeURIComponent(link.hash.slice(1)));
-      if (heading && heading.getBoundingClientRect().top < line) current = link;
+      // One inside a folded section has no place on the page.
+      if (heading && heading.getClientRects().length && heading.getBoundingClientRect().top < line) {
+        current = link;
+      }
     });
     if (current) {
       current.setAttribute("aria-current", "true");
@@ -291,31 +388,127 @@
   // buttons at the bottom, a tap on the left or right edge, or the page keys.
 
   var pager = document.querySelector(".pager");
+  // How much of the page before stays at the top of the next one, in lines of text.
+  var CARRY_LINES = 2;
+  var SHORTEST_TURN = 120;
+
+  function lineHeight() {
+    return 1.6 * parseFloat(getComputedStyle(root).fontSize);
+  }
 
   function pageStep() {
-    var twoLines = 2 * 1.6 * parseFloat(getComputedStyle(root).fontSize);
     var covered = bar.offsetHeight + (pager ? pager.offsetHeight : 0);
-    return Math.max(120, window.innerHeight - covered - twoLines);
+    return Math.max(SHORTEST_TURN, window.innerHeight - covered - CARRY_LINES * lineHeight());
   }
 
   function lastScroll() {
     return Math.max(0, root.scrollHeight - window.innerHeight);
   }
 
+  // A turn starts and ends on a whole line. The page is moved so that a line begins right
+  // under the bar; line heights differ, so the bottom cannot be made to land as well, and
+  // a strip in the page's colour covers the line the footer would cut through. That line
+  // is the first one not yet read, so the next turn carries on from it.
+
+  var trim = null;
+  var trimmed = 0;
+  var turnedTo = -1;
+
+  function setTrim(height) {
+    trimmed = height;
+    if (!trim && height) {
+      trim = document.createElement("div");
+      trim.className = "page-trim";
+      pager.before(trim);
+    }
+    if (trim) {
+      trim.style.bottom = pager.offsetHeight + "px";
+      trim.style.height = height + "px";
+    }
+  }
+
+  function caretAt(x, y) {
+    if (document.caretPositionFromPoint) {
+      var position = document.caretPositionFromPoint(x, y);
+      return position && { node: position.offsetNode, offset: position.offset };
+    }
+    if (document.caretRangeFromPoint) {
+      var range = document.caretRangeFromPoint(x, y);
+      return range && { node: range.startContainer, offset: range.startOffset };
+    }
+    return null;
+  }
+
+  // The line of text, table row, cell's Show/Hide or small picture drawn at this height of the screen, as
+  // its top and bottom, or nothing when that height falls between lines. Anything much
+  // taller than a line (a figure, a table) is not something to stop at the edge of.
+  function lineAt(y) {
+    var column = doc.getBoundingClientRect();
+    var tallest = 3 * lineHeight();
+    var found = null;
+    function take(box) {
+      if (box.top <= y && y < box.bottom && box.height > 0 && box.height <= tallest) found = box;
+      return Boolean(found);
+    }
+    [column.left + column.width / 2, column.left + 40, column.right - 40].some(function (x) {
+      var caret = caretAt(x, y);
+      if (caret && caret.node.nodeType === Node.TEXT_NODE) {
+        // The caret sits between two characters; either may be the one on this line.
+        var hit = [caret.offset, caret.offset - 1].some(function (start) {
+          if (start < 0 || start >= caret.node.length) return false;
+          var range = document.createRange();
+          range.setStart(caret.node, start);
+          range.setEnd(caret.node, start + 1);
+          return Array.prototype.some.call(range.getClientRects(), take);
+        });
+        if (hit) return true;
+      }
+      var element = document.elementFromPoint(x, y);
+      var whole = element && doc.contains(element) && element.closest("tr, summary, img, svg, .katex-display");
+      return Boolean(whole) && take(whole.getBoundingClientRect());
+    });
+    return found;
+  }
+
   function turn(direction) {
+    var whole = doc && pager && typeof direction === "number";
+    var top = bar.offsetHeight;
+    var bottom = window.innerHeight - (pager ? pager.offsetHeight : 0);
     var to = window.scrollY + direction * pageStep();
     if (direction === "start") to = 0;
     if (direction === "end") to = lastScroll();
+    if (whole && direction > 0) {
+      // From the first line that is not fully in view, less the lines carried over.
+      // Under the strip is the line it was put there to cover.
+      var unread = bottom - trimmed;
+      var cut = trimmed ? null : lineAt(bottom - 1);
+      if (cut) unread = cut.top;
+      var forward = unread - CARRY_LINES * lineHeight() - top;
+      if (forward >= SHORTEST_TURN) to = window.scrollY + forward;
+    }
+    setTrim(0);
     window.scrollTo({ top: to, behavior: "instant" });
+    if (whole) {
+      var first = lineAt(top + 1);
+      if (first && first.top < top) {
+        window.scrollTo({ top: window.scrollY + first.top - top - 2, behavior: "instant" });
+      }
+      var last = window.scrollY < lastScroll() - 1 && lineAt(bottom - 1);
+      if (last && last.bottom > bottom) setTrim(Math.ceil(bottom - last.top) + 1);
+    }
+    turnedTo = window.scrollY;
   }
 
   function updatePager() {
     if (!pager || !eink()) return;
+    // The strip belongs to the page a turn arrived at; any other move does away with it.
+    if (trimmed && Math.abs(window.scrollY - turnedTo) > 1) setTrim(0);
     var step = pageStep();
     var last = lastScroll();
     var y = Math.min(last, Math.max(0, window.scrollY));
     var total = Math.ceil(last / step) + 1;
-    var page = y >= last - 1 ? total : Math.min(total, Math.floor(y / step + 0.01) + 1);
+    // To the nearest: a turn that stops on a whole line is a little short of a full step.
+    var page = y >= last - 1 ? total : Math.min(total, Math.round(y / step) + 1);
     var label = page + " / " + total;
     var output = pager.querySelector("[data-page]");
     if (output.textContent !== label) output.textContent = label;
@@ -408,6 +601,199 @@
   }
 
   if (prefs.hideCode) applyHideCode();
+
+  // ---- Sections that fold ----
+  // A heading's section is everything after it up to the next heading of its level or
+  // above, wherever the cells happen to be divided: a heading is often in the middle of a
+  // markdown cell. So the page is taken as one run of blocks (each piece of a markdown
+  // cell, each code cell whole) and the folded headings hide the blocks that follow them.
+
+  var blocks = [];
+  var folded = {};
+  var FOLDS = doc && doc.dataset.path ? "lectern:fold:" + doc.dataset.path : null;
+
+  if (doc) {
+    cells().forEach(function (cell) {
+      if (!cell.classList.contains("md")) {
+        blocks.push({ el: cell, level: 0 });
+        return;
+      }
+      Array.prototype.forEach.call(cell.children, function (el) {
+        var heading = /^H[1-4]$/.test(el.tagName) && el.id;
+        blocks.push({ el: el, level: heading ? Number(el.tagName.charAt(1)) : 0 });
+      });
+    });
+    // A heading with nothing under it has nothing to fold.
+    blocks.forEach(function (block, index) {
+      var next = blocks[index + 1];
+      if (block.level && (!next || (next.level && next.level <= block.level))) block.level = 0;
+    });
+  }
+
+  function headingBlocks() {
+    return blocks.filter(function (block) {
+      return block.level;
+    });
+  }
+
+  // The folded heading that hides this element, if one does.
+  function hiderOf(element) {
+    var hider = null;
+    var found = null;
+    blocks.some(function (block) {
+      if (hider && block.level && block.level <= hider.level) hider = null;
+      if (block.el.contains(element) || element.contains(block.el)) {
+        found = hider;
+        return true;
+      }
+      if (!hider && block.level && folded[block.el.id]) hider = block;
+      return false;
+    });
+    return found;
+  }
+
+  function applyFolds() {
+    var hiding = 0;
+    blocks.forEach(function (block) {
+      if (hiding && block.level && block.level <= hiding) hiding = 0;
+      block.el.classList.toggle("folded-away", hiding > 0);
+      if (!hiding && block.level && folded[block.el.id]) hiding = block.level;
+      if (block.level) {
+        block.el.querySelector(".fold").setAttribute("aria-expanded", !folded[block.el.id]);
+      }
+    });
+    // A markdown cell with nothing left showing gives up its place too.
+    doc.querySelectorAll(":scope > .cell.md").forEach(function (cell) {
+      var empty = cell.children.length > 0 && !cell.querySelector(":scope > :not(.folded-away)");
+      cell.classList.toggle("folded-away", empty);
+    });
+    if (toc) {
+      toc.querySelectorAll("a[href^='#']").forEach(function (link) {
+        link.toggleAttribute("data-folded", folded[decodeURIComponent(link.hash.slice(1))] === true);
+      });
+    }
+    if (!FOLDS) return;
+    try {
+      var ids = Object.keys(folded);
+      if (ids.length) localStorage.setItem(FOLDS, JSON.stringify(ids));
+      else localStorage.removeItem(FOLDS);
+    } catch (e) {}
+  }
+
+  // Folding changes what is on the page above and below; hold on to what was being read.
+  // If that is now folded away, its heading is the nearest thing to it.
+  function foldKeepingPlace(change) {
+    var line = readingLine();
+    var held = null;
+    blocks.some(function (block) {
+      if (block.el.getBoundingClientRect().bottom <= line) return false;
+      held = block.el;
+      return true;
+    });
+    var before = held && held.getBoundingClientRect().top;
+    change();
+    applyFolds();
+    if (held) {
+      var hider = hiderOf(held);
+      holdBar = Date.now() + 600;
+      if (hider) hider.el.scrollIntoView({ block: "start", behavior: "instant" });
+      else window.scrollBy({ top: held.getBoundingClientRect().top - before, behavior: "instant" });
+      lastY = window.scrollY;
+    }
+    setTrim(0);
+    updatePager();
+  }
+
+  // Opens whatever keeps a link's target out of sight, and the target's own section.
+  function unfoldFor(target) {
+    if (!blocks.length || !doc.contains(target)) return false;
+    var changed = false;
+    for (var hider = hiderOf(target); hider; hider = hiderOf(target)) {
+      delete folded[hider.el.id];
+      changed = true;
+    }
+    if (folded[target.id]) {
+      delete folded[target.id];
+      changed = true;
+    }
+    if (changed) {
+      applyFolds();
+      setTrim(0);
+    }
+    return changed;
+  }
+
+  function hashTarget(hash) {
+    try {
+      return hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  if (headingBlocks().length) {
+    headingBlocks().forEach(function (block) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "fold";
+      button.setAttribute("aria-label", "Fold or unfold this section");
+      block.el.prepend(button);
+    });
+    try {
+      ((FOLDS && JSON.parse(localStorage.getItem(FOLDS))) || []).forEach(function (id) {
+        var heading = document.getElementById(id);
+        if (heading && heading.querySelector(":scope > .fold")) folded[id] = true;
+      });
+    } catch (e) {}
+    applyFolds();
+
+    doc.addEventListener("click", function (event) {
+      var button = event.target.closest("button.fold");
+      if (!button) return;
+      var id = button.parentNode.id;
+      foldKeepingPlace(function () {
+        if (folded[id]) delete folded[id];
+        else folded[id] = true;
+      });
+    });
+
+    // Before the browser jumps to it: a target that is folded away has nowhere to be.
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest && event.target.closest("a[href]");
+      if (!link || link.pathname !== location.pathname || link.search !== location.search) return;
+      var target = hashTarget(link.hash);
+      if (target) unfoldFor(target);
+    });
+    var showHashTarget = function () {
+      var target = hashTarget(location.hash);
+      if (target && unfoldFor(target)) target.scrollIntoView({ block: "start", behavior: "instant" });
+    };
+    window.addEventListener("hashchange", showHashTarget);
+    showHashTarget();
+
+    var foldAll = toc && toc.querySelector("[data-folds]");
+    if (foldAll) {
+      foldAll.hidden = false;
+      foldAll.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-fold-all]");
+        if (!button) return;
+        var headings = headingBlocks();
+        // A lone h1 is the title: folding it would leave nothing but the title.
+        var titles = headings.filter(function (block) {
+          return block.level === 1;
+        });
+        foldKeepingPlace(function () {
+          folded = {};
+          if (button.dataset.foldAll !== "true") return;
+          headings.forEach(function (block) {
+            if (block.level > 1 || titles.length > 1) folded[block.el.id] = true;
+          });
+        });
+        markCurrentHeading(toc);
+      });
+    }
+  }
+
   updatePager();
 
   // ---- Printed output: long blocks start short, wide ones can stop wrapping ----
@@ -475,10 +861,18 @@
   }
 
   function goToPlace(place) {
-    var cell = place.cell && document.getElementById(place.cell);
+    // A markdown file is one cell, and that cell has no id.
+    var cell = place.cell ? document.getElementById(place.cell) : doc && cells()[0];
     if (!cell) return;
-    var box = cell.getBoundingClientRect();
     holdBar = Date.now() + 600;
+    // A place inside a folded section: its heading is as near as the page gets.
+    var hider = cell.classList.contains("folded-away") && hiderOf(cell);
+    if (hider) {
+      hider.el.scrollIntoView({ block: "start", behavior: "instant" });
+      lastY = window.scrollY;
+      return;
+    }
+    var box = cell.getBoundingClientRect();
     window.scrollTo(0, window.scrollY + box.top + place.frac * box.height - readingLine());
     lastY = window.scrollY;
   }

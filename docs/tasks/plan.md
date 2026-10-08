@@ -8,6 +8,8 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 
 **Out of scope for now.** Recorded so it can be picked up as a follow-up.
 
+**Decided (Anton, 2026-10-08): only where lectern serves the pages.** A site made by `lectern build`, such as the notebooks published from a GitHub workflow, is for other people to read: its pages offer no way to mark or remark on anything and carry nobody's notes. Like the link guard and the start page, whatever is built for this is skipped when the page has `data-static`.
+
 **What has to be decided before building it:**
 
 - **It needs the server to accept writes.** Today lectern answers `GET` and `HEAD` only, and running without a token rests on that: nothing a device sends can change anything on the Mac (HANDOFF decisions 2 and 7). Saving a note is a write. The narrowest form would be one endpoint that can only append to or replace a notes file lectern itself owns, never a path the request names. Whether that is still acceptable without a token is the first question.
@@ -18,10 +20,9 @@ Ideas and postponed items that came out of using lectern. The milestones themsel
 
 ## 2. Postponed from the first round of feedback
 
-- **Collapse and expand sections by heading**, working together with the contents list. Cells are rendered one after another with no section wrapper, so this means grouping cells under their heading at render time.
 - **Column width as a free setting.** There are five fixed steps now (narrow, medium, wide, wider, full), and everything shares one column. A slider if the steps turn out too coarse.
 - **A more file-oriented listing.** First impression was that it should show more of the files; after using it, it seemed fine. Left as it is, apart from naming the file on every row.
 - **Leaving folders out.** `lectern serve` in agent-memory-eval also serves its `private/` directory. An ignore list (per folder, or a `.lecternignore`) would let a folder be served without everything in it.
 - **"Continue reading" on the listing**, filled from the saved reading positions (HANDOFF section 9).
-- **Page turns that end on a whole line.** In the e-ink theme a turn moves by a fixed distance, so the last line on the screen can be cut through by the footer; the next page repeats it. Snapping each turn to a line of text would remove that, at the cost of measuring the layout on every turn.
+- **Reading the fold marker and the page turns on the devices.** Both were built on 2026-10-08 and checked only in desktop browsers. To judge on the iPad and the Boox: whether the marker beside a heading is easy enough to hit, whether two lines carried over to the next page is the right number (`CARRY_LINES` in `reader.js`), and whether the blank strip above the footer reads as the end of the page or as something missing.
 - **Fonts for e-ink.** Nothing is bundled; the theme uses whatever serif and monospace the tablet has. Decide after seeing it on the device.
