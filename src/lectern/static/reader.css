@@ -634,6 +634,8 @@ dialog.sheet {
    a link's, and one with a note has two. */
 [data-theme="eink"] .doc ::highlight(lectern-mark) { text-decoration: underline 3px var(--mark-line); }
 [data-theme="eink"] .doc ::highlight(lectern-note) { text-decoration: underline double 3px var(--mark-line); }
+/* Set for a moment on the block a mark was taken from, to have it painted again. */
+[data-repaint] { outline: 1px solid transparent; }
 
 /* What can be done with a mark that was tapped, beside it on the page. */
 .mark-pop {

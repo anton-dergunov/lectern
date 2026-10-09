@@ -1039,7 +1039,23 @@
     CSS.highlights.set("lectern-mark", plain);
     CSS.highlights.set("lectern-note", noted);
 
+    // Safari on the iPad can leave a hairline where the top of a removed mark was: it
+    // repaints the words, and the tint was a little taller than they are. Having the block
+    // they are in painted again takes the line away, and changes nothing that shows.
+    var repaint = function (node) {
+      var block = node.nodeType === 1 ? node : node.parentElement;
+      while (block && block !== doc && getComputedStyle(block).display.indexOf("inline") === 0) {
+        block = block.parentElement;
+      }
+      if (!block || block.hasAttribute("data-repaint")) return;
+      block.setAttribute("data-repaint", "");
+      requestAnimationFrame(function () {
+        block.removeAttribute("data-repaint");
+      });
+    };
+
     var paint = function () {
+      var before = painted;
       plain.clear();
       noted.clear();
       painted = [];
@@ -1056,6 +1072,14 @@
           return a.at - b.at;
         });
       }
+      before.forEach(function (was) {
+        var still = painted.some(function (now) {
+          return now.mark.id === was.mark.id;
+        });
+        if (still) return;
+        repaint(was.range.startContainer);
+        repaint(was.range.endContainer);
+      });
       listButton.hidden = !marks.length;
     };
 

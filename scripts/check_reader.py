@@ -806,6 +806,12 @@ def run(engine_name: str, playwright) -> bool:
                 shown = pop.locator("p").text_content() == "Is this the third?"
                 results.append(check("a tap on the mark shows the note", shown))
                 marker.evaluate("window.notedBefore = CSS.highlights.get('lectern-note')")
+                marker.evaluate(
+                    """() => { window.repainted = [];
+                               new MutationObserver((changes) => changes.forEach((change) => {
+                                 if (change.target.hasAttribute('data-repaint')) window.repainted.push(change.target.tagName);
+                               })).observe(document.querySelector('.doc'), {attributes: true, subtree: true}); }"""
+                )
                 pop.get_by_role("button", name="Remove").click()
                 settle(marker)
                 removed = marker.evaluate(MARKED)["noted"] == 0 and len(kept()) == 3
@@ -816,6 +822,13 @@ def run(engine_name: str, playwright) -> bool:
                 )
                 results.append(
                     check("by emptying the highlight it was in, not replacing it", emptied)
+                )
+                # On the iPad the top edge of the tint could stay behind as a hairline.
+                again = marker.evaluate(
+                    "[window.repainted, document.querySelectorAll('[data-repaint]').length]"
+                )
+                results.append(
+                    check("and the block it was in is painted again", again == [["P"], 0], again)
                 )
 
                 marker.get_by_role("button", name="Reading settings").click()
