@@ -157,7 +157,7 @@ Open the address once in **Safari**, then Share → Add to Home Screen. The icon
 
 Two things are there only when lectern is opened from the icon:
 
-- **Find.** The magnifier in the top bar searches the document you are reading. Type a word or a phrase, upper or lower case alike; Return or the arrows step through what was found, opening a folded section or hidden code when a match is inside one. In a browser, use the browser's own Find instead.
+- **Find.** The magnifier in the top bar searches the document you are reading. Type a word or a phrase, upper or lower case alike, and it says how many times it occurs; Return or the arrows put the keyboard away and step through what was found, opening a folded section or hidden code when a match is inside one. In a browser, use the browser's own Find instead.
 - **Picking up where you left off.** If the iPad closes the app while it is in the background, the icon opens the page you were on, at your place, and the back arrow still leads to the document you came from. If that page did not finish loading the last time, the app opens the listing instead, so a page that will not open cannot trap you.
 
 ### Publishing as a static site

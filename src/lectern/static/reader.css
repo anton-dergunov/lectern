@@ -626,63 +626,57 @@ dialog.sheet {
 
 .bar[data-finding] > :not(.find) { display: none; }
 /* Fixed, not sticky: it must not move with the page for a moment each time the page is
-   taken to the next match, and it is larger than the bar it stands in for. */
+   taken to the next match. A little taller than the bar it stands in for. */
 .bar[data-finding] {
   position: fixed;
   top: 0;
   right: 0;
   left: 0;
-  min-height: calc(64px + env(safe-area-inset-top));
-  background: var(--bg-alt);
-  border-bottom: 2px solid var(--fg-muted);
+  min-height: calc(54px + env(safe-area-inset-top));
+  border-bottom-color: var(--fg-muted);
   transition: none;
-  will-change: transform;
 }
 .find {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 .find input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: 38px;
   margin: 0;
-  padding: 0 12px;
-  border: 2px solid var(--fg-muted);
-  border-radius: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--fg-muted);
+  border-radius: 8px;
   background: var(--bg);
   color: var(--fg-strong);
   /* Not under 16px: Safari on a phone or tablet zooms the page in on a field with small text. */
-  font: 18px/1.2 var(--font-ui);
+  font: 16px/1.2 var(--font-ui);
   appearance: none;
 }
 .find input:focus { border-color: var(--link); outline: none; }
 .find output {
   flex: none;
-  min-width: 4.5em;
   padding: 0 4px 0 10px;
-  color: var(--fg-strong);
-  font-size: 0.85rem;
+  color: var(--fg);
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
-  text-align: right;
   white-space: nowrap;
 }
-.find .bar-button { width: 48px; height: 48px; color: var(--fg-strong); }
 .find .bar-button:disabled { color: var(--fg-muted); cursor: default; }
 .find [data-done] {
   flex: none;
-  min-height: 48px;
+  min-height: 44px;
   padding: 0 0 0 0.6rem;
   border: 0;
   background: none;
-  font: 600 0.9rem/1 var(--font-ui);
+  font: 600 0.8rem/1 var(--font-ui);
   color: var(--link);
   cursor: pointer;
 }
-[data-theme^="eink"] .bar[data-finding] { border-bottom: 2px solid var(--fg); }
 
 /* ---- Notes and highlights ---- */
 /* Painted over the text by the script, which leaves the page's elements as they are. Only

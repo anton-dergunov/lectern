@@ -1087,13 +1087,6 @@
     return at >= 0 ? at : best(0, model.text.length, 0, mark.prefix || mark.suffix ? 1 : 0);
   }
 
-  // How far down the page a keyboard has pushed what is seen of it, while the find field
-  // is up. Nothing the rest of the time: a page zoomed with two fingers is left alone.
-  function pannedBy() {
-    var seen = window.visualViewport;
-    return seen && bar.hasAttribute("data-finding") ? Math.max(0, seen.offsetTop) : 0;
-  }
-
   // Brings a stretch of the text into view, a little below the bar, whatever hides it.
   function goToRange(range) {
     var place = range.startContainer.parentElement;
@@ -1106,7 +1099,7 @@
     if (clamped) clamped.classList.remove("clamped");
     holdBar = Date.now() + 600;
     var top = window.scrollY + range.getBoundingClientRect().top - readingLine() - 2 * lineHeight();
-    window.scrollTo({ top: top - pannedBy(), behavior: "instant" });
+    window.scrollTo({ top: top, behavior: "instant" });
     lastY = window.scrollY;
     leaveTurns();
     updatePager();
@@ -1589,6 +1582,12 @@
   // Only in a Home Screen app: a browser has its own Find, and the app has no browser
   // around it. What is found is painted like the marks are, over the text, and going to
   // one opens whatever hides it: a folded section, code put away, output cut short.
+  //
+  // The page and a keyboard on the screen do not move together. With the keyboard up a
+  // tablet slides the page about under the screen's top edge, and takes anything fixed
+  // there with it, so the bar would wander and flash at every step. So typing only
+  // counts and paints what is found; Return, or an arrow, puts the keyboard away and
+  // goes to a match, and so does a finger starting to scroll the page.
 
   var MOST_FOUND = 500;
 
@@ -1632,24 +1631,21 @@
     var findInput = findForm.querySelector("input");
     var findCount = findForm.querySelector("output");
 
-    var showMatch = function () {
-      thisMatch.clear();
-      findForm.querySelectorAll("[data-step]").forEach(function (button) {
-        button.disabled = matches.length < 2;
-      });
-      if (matchAt < 0) {
-        findCount.textContent = searched ? "No matches" : "";
-        return;
-      }
-      thisMatch.add(matches[matchAt]);
+    var showCount = function () {
       var all = matches.length < MOST_FOUND ? matches.length : MOST_FOUND + "+";
-      findCount.textContent = matchAt + 1 + " of " + all;
-      goToRange(matches[matchAt]);
+      findForm.querySelectorAll("[data-step]").forEach(function (button) {
+        button.disabled = !matches.length;
+      });
+      if (!searched) findCount.textContent = "";
+      else if (!matches.length) findCount.textContent = "No matches";
+      else if (matchAt < 0) findCount.textContent = all + (matches.length === 1 ? " match" : " matches");
+      else findCount.textContent = matchAt + 1 + " of " + all;
     };
 
     var search = function () {
       clearTimeout(searching);
       everyMatch.clear();
+      thisMatch.clear();
       matches = [];
       matchAt = -1;
       searched = findInput.value.trim();
@@ -1666,32 +1662,48 @@
           if (matches.length === MOST_FOUND) break;
         }
       }
-      // Start from the first one still to come, not from the top of the document. One
-      // that is hidden has no place on the page and is reached by going on.
-      matches.some(function (range, index) {
-        if (range.getBoundingClientRect().bottom <= bar.offsetHeight) return false;
-        matchAt = index;
-        return true;
-      });
-      if (matchAt < 0 && matches.length) matchAt = 0;
-      showMatch();
+      showCount();
     };
 
+    // To the next match or the one before. The first step after a search is to the first
+    // match still to come, not to the top of the document; one that is hidden has no
+    // place on the page and is reached by going on.
     var step = function (by) {
+      findInput.blur();
+      if (findInput.value.trim() !== searched) search();
       if (!matches.length) return;
-      matchAt = (matchAt + by + matches.length) % matches.length;
-      showMatch();
+      if (matchAt < 0) {
+        matchAt = 0;
+        matches.some(function (range, index) {
+          if (range.getBoundingClientRect().bottom <= bar.offsetHeight) return false;
+          matchAt = index;
+          return true;
+        });
+        if (by < 0) matchAt -= 1;
+      } else {
+        matchAt += by;
+      }
+      matchAt = (matchAt + matches.length) % matches.length;
+      thisMatch.clear();
+      thisMatch.add(matches[matchAt]);
+      showCount();
+      goToRange(matches[matchAt]);
     };
 
     // The bar's place in the page while it is out of it, so that nothing moves up.
     var findSpace = document.createElement("div");
-    // A keyboard coming up can slide the page under the screen's top edge, and what is
-    // fixed goes with the page. The bar is moved back down by as much.
-    var pinBar = function () {
-      var by = pannedBy();
-      bar.style.transform = by ? "translateY(" + by + "px)" : "";
+
+    var findKeys = function (event) {
+      if (event.key === "Escape") closeFind();
+      // With the caret out of the field, as it is after a step.
+      else if (event.key === "Enter" && event.target !== findInput && !event.target.closest("button")) {
+        event.preventDefault();
+        step(event.shiftKey ? -1 : 1);
+      }
     };
-    var pinOn = [window.visualViewport, window];
+    var findDrag = function (event) {
+      if (document.activeElement === findInput && !bar.contains(event.target)) findInput.blur();
+    };
 
     var closeFind = function () {
       clearTimeout(searching);
@@ -1700,14 +1712,10 @@
       matches = [];
       matchAt = -1;
       bar.removeAttribute("data-finding");
-      bar.style.transform = "";
       findForm.remove();
       findSpace.remove();
-      pinOn.forEach(function (target) {
-        if (!target) return;
-        target.removeEventListener("resize", pinBar);
-        target.removeEventListener("scroll", pinBar);
-      });
+      document.removeEventListener("keydown", findKeys);
+      document.removeEventListener("touchmove", findDrag);
       // The bar is a different height again, and the turns were measured from it.
       leaveTurns();
       updatePager();
@@ -1728,11 +1736,8 @@
       bar.setAttribute("data-finding", "");
       bar.appendChild(findForm);
       showBar(true);
-      pinOn.forEach(function (target) {
-        if (!target) return;
-        target.addEventListener("resize", pinBar);
-        target.addEventListener("scroll", pinBar);
-      });
+      document.addEventListener("keydown", findKeys);
+      document.addEventListener("touchmove", findDrag, { passive: true });
       leaveTurns();
       updatePager();
       // Here, in the tap itself: a tablet brings up its keyboard for nothing later. And
@@ -1749,22 +1754,13 @@
     });
     findForm.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (findInput.value.trim() === searched) step(1);
-      else search();
+      step(1);
     });
     findForm.addEventListener("click", function (event) {
       var button = event.target.closest("button");
       if (!button) return;
       if (button.dataset.step) step(Number(button.dataset.step));
       else closeFind();
-    });
-    findForm.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") closeFind();
-    });
-    // A tap on a button here leaves the caret where it is: taking it out of the field
-    // would put the keyboard away and move the page under the bar at every step.
-    findForm.addEventListener("mousedown", function (event) {
-      if (event.target.closest("button")) event.preventDefault();
     });
   }
 

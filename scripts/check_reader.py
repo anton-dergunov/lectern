@@ -966,12 +966,15 @@ def run(engine_name: str, playwright) -> bool:
             app.get_by_role("searchbox").fill("walrus")
             app.wait_for_timeout(500)
             said = count.inner_text()
+            still = abs(app.locator("#One").evaluate(top) - before) < 1
             results.append(
-                check(
-                    "words are found in either case", said == "1 of 3", (said, app.evaluate(found))
-                )
+                check("typing counts what is found, in either case", said == "3 matches", said)
             )
-            results.append(check("and all painted", app.evaluate(found) == 3))
+            results.append(check("and paints it", app.evaluate(found) == 3))
+            results.append(check("without moving the page", still))
+            app.get_by_role("searchbox").press("Enter")
+            said = count.inner_text()
+            results.append(check("return goes to the first one ahead", said == "1 of 3", said))
             hidden = not app.locator("#Two + p").is_visible()
             app.get_by_role("button", name="Next match").click()
             unfolded = hidden and app.locator("#Two + p").is_visible()
@@ -979,16 +982,21 @@ def run(engine_name: str, playwright) -> bool:
             results.append(
                 check("going on opens a folded section", unfolded and said == "2 of 3", said)
             )
+            app.keyboard.press("Enter")
+            said = count.inner_text()
+            results.append(
+                check("return goes on with the caret out of the field", said == "3 of 3", said)
+            )
             held = app.locator(".bar").evaluate(
                 "e => [getComputedStyle(e).position, e.getBoundingClientRect().top, e.offsetHeight,"
-                " document.activeElement === e.querySelector('input')]"
+                " e.style.transform, document.activeElement === e.querySelector('input')]"
             )
-            fixed = held[0] == "fixed" and held[1] == 0 and held[2] >= 64 and held[3]
-            results.append(check("the field stays at the top, with the caret in it", fixed, held))
+            fixed = held[:2] == ["fixed", 0] and held[2] >= 54 and not held[3] and not held[4]
+            results.append(check("the field stays at the top, and is never moved", fixed, held))
             app.get_by_role("searchbox").fill("a walrus")
             app.wait_for_timeout(500)
             said = count.inner_text()
-            results.append(check("a space matches the end of a line", said.endswith("of 2"), said))
+            results.append(check("a space matches the end of a line", said == "2 matches", said))
             app.get_by_role("searchbox").fill("zebra")
             app.get_by_role("searchbox").press("Enter")
             said = count.inner_text()
