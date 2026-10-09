@@ -21,6 +21,8 @@
   --accent: #cb4b16;
   --mark: rgb(181 137 0 / 0.28);
   --mark-line: #b58900;
+  --find: rgb(38 139 210 / 0.22);
+  --find-current: rgb(203 75 22 / 0.45);
   --code-fg: #586e75;
   --err: #dc322f;
   --shade: rgb(7 54 66 / 0.25);
@@ -54,6 +56,8 @@
   --accent: #cb4b16;
   --mark: rgb(181 137 0 / 0.38);
   --mark-line: #b58900;
+  --find: rgb(38 139 210 / 0.35);
+  --find-current: rgb(203 75 22 / 0.65);
   --code-fg: #93a1a1;
   --err: #dc322f;
   --shade: rgb(0 0 0 / 0.45);
@@ -79,6 +83,8 @@
   --accent: #a4380f;
   --mark: #fff3a3;
   --mark-line: #b08a00;
+  --find: #cfe4ff;
+  --find-current: #ffb066;
   --code-fg: #222222;
   --err: #c0261d;
   --shade: rgb(0 0 0 / 0.25);
@@ -111,6 +117,8 @@
   --accent: #ffa657;
   --mark: rgb(255 214 10 / 0.3);
   --mark-line: #ffd60a;
+  --find: rgb(10 132 255 / 0.4);
+  --find-current: rgb(255 159 10 / 0.7);
   --code-fg: #dcdcdc;
   --err: #ff7b72;
   --shade: rgb(0 0 0 / 0.6);
@@ -146,6 +154,8 @@
   --accent: #000000;
   --mark: transparent;
   --mark-line: #000000;
+  --find: transparent;
+  --find-current: transparent;
   --code-fg: #000000;
   --err: #000000;
   --shade: transparent;
@@ -179,6 +189,8 @@
   --err: #b00000;
   --mark: #ffe14d;
   --mark-line: #000000;
+  --find: #a8d4ff;
+  --find-current: #ffb066;
 
   --syn-kw: #0033b3;
   --syn-str: #067d17;

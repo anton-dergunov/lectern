@@ -43,6 +43,7 @@ A request whose `Host` is not this Mac's `.local` name, `localhost`, an IP addre
 - `static/boot.js` runs before the first paint and applies the saved theme and text size, so a page never flashes in the wrong colours.
 - `static/reader.js` does everything after load. Settings, reading positions and folded sections are kept per device in `localStorage`.
 - Highlights are drawn with the CSS highlight API, which paints over the text without changing an element, so folding, reading positions and page turns are unaffected by them.
+- A Home Screen app (`navigator.standalone`, or `display-mode: standalone`) gets two things a browser tab does not need. A find field in the top bar: matches are painted with the highlight API like marks, and going to one opens what hides it. And a way back in: the trail of pages, which lives in `sessionStorage`, is copied to `localStorage`, and the start page hands it back and goes to the page it ends on. The start page marks that it is doing so and the page clears the mark once loaded, so a page that never loads is not gone back to twice.
 - The e-ink theme replaces scrolling with page turns that start and end on a whole line.
 - Colours are variables in `static/themes.css`, one block per theme; the other stylesheets only use them.
 

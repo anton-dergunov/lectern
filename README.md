@@ -18,7 +18,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - reading settings saved per device, starting from sizes that suit a tablet, a phone, a desktop or an e-ink reader: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
 - an e-ink theme, chosen by itself on e-ink readers: black on white, nothing animated, and pages turned with buttons, a tap on either edge of the screen, or the page keys instead of scrolling. A page starts and ends on a whole line, and begins with the last two lines of the page before. For an e-ink screen with colour it can colour code and printed output; pictures are in colour either way. A tap on the page number hides the top bar, and another brings it back;
 - a top bar that gets out of the way while you read down and comes back when you scroll up;
-- a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars;
+- a page that can be added to the iPad Home Screen and then opens full screen, with no browser bars. Opened that way it has a find button in the top bar, since there is no browser to search with, and it reopens on the page you were reading, with the way back to where you came from;
 - the same pages as a static site, with `lectern build`, to publish committed notebooks on GitHub Pages or any other host.
 
 Notebooks are shown as they were last saved, including ones you have not committed. Save the notebook and reload the page to see the change.
@@ -154,6 +154,11 @@ Over HTTPS lectern also stays in charge when it is stopped: opening or reloading
 ### Full screen on an iPad
 
 Open the address once in **Safari**, then Share → Add to Home Screen. The icon opens lectern full screen. The icon is tied to the address, so keep the port the same.
+
+Two things are there only when lectern is opened from the icon:
+
+- **Find.** The magnifier in the top bar searches the document you are reading. Type a word or a phrase, upper or lower case alike; Return or the arrows step through what was found, opening a folded section or hidden code when a match is inside one. In a browser, use the browser's own Find instead.
+- **Picking up where you left off.** If the iPad closes the app while it is in the background, the icon opens the page you were on, at your place, and the back arrow still leads to the document you came from. If that page did not finish loading the last time, the app opens the listing instead, so a page that will not open cannot trap you.
 
 ### Publishing as a static site
 

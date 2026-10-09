@@ -30,6 +30,9 @@
   // Where this script was loaded from is where the icon is.
   var assets = document.currentScript ? document.currentScript.src.replace(/reader\.js.*$/, "") : "";
   var served = !("static" in root.dataset);
+  // Opened from a Home Screen icon: full screen, with no browser around the page.
+  var standalone =
+    navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
   // Marking text: on a document lectern is serving, in a browser that can paint the marks.
   var canMark = Boolean(
     served && doc && doc.dataset.path && window.Highlight && window.CSS && CSS.highlights
@@ -91,6 +94,51 @@
     timer = setTimeout(retry, pause || 0);
   }
 
+  // ---- Where a Home Screen app was ----
+  // A device puts an app away when it wants the memory, and the icon then opens the start
+  // page again. So the app keeps its trail (see below) where it outlasts that, and the
+  // start page goes back to the page the trail ends on, with the way there intact.
+
+  var TRAIL = "lectern:trail";
+  var LAST = "lectern:last";
+  var RESUMING = "lectern:resuming";
+
+  // The address to go back to, or nothing. A page that never finished loading the last
+  // time it was gone back to is not tried again: quitting is the only way out of a page
+  // that hangs, and it must not lead straight back in.
+  function lastPlace() {
+    var trail = null;
+    try {
+      if (!standalone) return Promise.resolve(null);
+      trail = JSON.parse(localStorage.getItem(LAST));
+      if (localStorage.getItem(RESUMING)) {
+        localStorage.removeItem(RESUMING);
+        localStorage.removeItem(LAST);
+        return Promise.resolve(null);
+      }
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+    var last = trail && Array.isArray(trail.list) && trail.list[trail.at];
+    var url = last && typeof last.url === "string" ? last.url : "";
+    // A path on this server and nothing else.
+    if (url.charAt(0) !== "/" || url.charAt(1) === "/") return Promise.resolve(null);
+    return fetch(url, { method: "HEAD", cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) {
+          // Renamed, deleted, or in a folder that is no longer served.
+          localStorage.removeItem(LAST);
+          return null;
+        }
+        sessionStorage.setItem(TRAIL, JSON.stringify(trail));
+        localStorage.setItem(RESUMING, "1");
+        return url;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
   // The start page. It is cached for a long time so that it still opens when the server
   // is down, and its only job is to find out which case this is.
   var shell = document.getElementById("offline");
@@ -107,9 +155,12 @@
         // A newer lectern than the one that cached this page: refresh the cached copy.
         var refresh =
           info.assets === shell.dataset.assets ? Promise.resolve() : fetch("/", { cache: "reload" });
-        refresh.catch(function () {}).then(function () {
-          location.replace(home);
-        });
+        refresh
+          .catch(function () {})
+          .then(lastPlace)
+          .then(function (last) {
+            location.replace(last || home);
+          });
       },
       function () {
         waitForServer(home);
@@ -145,7 +196,6 @@
   // jump inside a page is a history entry too, and going back would step through those
   // instead of leaving the document. A Home Screen app has no buttons for it anyway.
 
-  var TRAIL = "lectern:trail";
   var TRAIL_MOVE = "lectern:trail-move";
   var TRAIL_KEEPS = 50;
   var address = location.pathname + location.search;
@@ -185,6 +235,11 @@
       // Nowhere to keep it: the chevron stays the way up to the folder.
       return;
     }
+    if (served && standalone) {
+      try {
+        localStorage.setItem(LAST, JSON.stringify(trail));
+      } catch (e) {}
+    }
 
     var previous = trail.list[trail.at - 1];
     var next = trail.list[trail.at + 1];
@@ -223,6 +278,12 @@
     window.addEventListener("pageshow", function (event) {
       if (event.persisted) syncTrail("back_forward");
     });
+    // This page has loaded, so it is safe to come back to.
+    window.addEventListener("load", function () {
+      try {
+        localStorage.removeItem(RESUMING);
+      } catch (e) {}
+    });
     // Says which way the trail is being walked. It is believed on arrival only if the page
     // at that step is the one that loaded, so a link that led nowhere leaves nothing behind.
     bar.addEventListener("click", function (event) {
@@ -244,8 +305,9 @@
   }
 
   function showBar(show) {
-    // On e-ink the bar stays put: sliding it in and out is a repaint each time.
-    root.classList.toggle("bar-away", !show && !eink());
+    // On e-ink the bar stays put: sliding it in and out is a repaint each time. So it
+    // does while it holds what is being looked for.
+    root.classList.toggle("bar-away", !show && !eink() && !bar.hasAttribute("data-finding"));
   }
 
   window.addEventListener(
@@ -621,7 +683,7 @@
     };
     document.addEventListener("keydown", function (event) {
       if (!eink() || !KEYS[event.key] || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (document.querySelector("dialog[open]")) return;
+      if (document.querySelector("dialog[open]") || event.target.closest("input, textarea")) return;
       event.preventDefault();
       turn(KEYS[event.key]);
     });
@@ -1025,6 +1087,24 @@
     return at >= 0 ? at : best(0, model.text.length, 0, mark.prefix || mark.suffix ? 1 : 0);
   }
 
+  // Brings a stretch of the text into view, a little below the bar, whatever hides it.
+  function goToRange(range) {
+    var place = range.startContainer.parentElement;
+    unfoldFor(place);
+    // Code that is folded away, and output cut to its first lines.
+    for (var shut = place.closest("details:not([open])"); shut; shut = place.closest("details:not([open])")) {
+      shut.open = true;
+    }
+    var clamped = place.closest("pre.clamped");
+    if (clamped) clamped.classList.remove("clamped");
+    holdBar = Date.now() + 600;
+    var top = window.scrollY + range.getBoundingClientRect().top - readingLine() - 2 * lineHeight();
+    window.scrollTo({ top: top, behavior: "instant" });
+    lastY = window.scrollY;
+    leaveTurns();
+    updatePager();
+  }
+
   if (canMark) {
     // Where this document's marks are kept: the server writes them to a file beside it.
     var NOTES = "/_notes" + location.pathname;
@@ -1390,23 +1470,6 @@
       '<button type="button" data-close>Done</button></header><div class="notes"></div></div>';
     document.body.appendChild(list);
 
-    var goToMark = function (range) {
-      var place = range.startContainer.parentElement;
-      unfoldFor(place);
-      // Code that is folded away, and output cut to its first lines.
-      for (var shut = place.closest("details:not([open])"); shut; shut = place.closest("details:not([open])")) {
-        shut.open = true;
-      }
-      var clamped = place.closest("pre.clamped");
-      if (clamped) clamped.classList.remove("clamped");
-      holdBar = Date.now() + 600;
-      var top = window.scrollY + range.getBoundingClientRect().top - readingLine() - 2 * lineHeight();
-      window.scrollTo({ top: top, behavior: "instant" });
-      lastY = window.scrollY;
-      leaveTurns();
-      updatePager();
-    };
-
     var listEntry = function (mark, range) {
       var entry = document.createElement(range ? "a" : "div");
       entry.className = "noted";
@@ -1423,7 +1486,7 @@
         entry.addEventListener("click", function (event) {
           event.preventDefault();
           list.close();
-          goToMark(range);
+          goToRange(range);
         });
       } else {
         var remove = toolButton("Remove");
@@ -1512,6 +1575,151 @@
           paint();
         })
         .catch(function () {});
+    });
+  }
+
+  // ---- Finding words in the document ----
+  // Only in a Home Screen app: a browser has its own Find, and the app has no browser
+  // around it. What is found is painted like the marks are, over the text, and going to
+  // one opens whatever hides it: a folded section, code put away, output cut short.
+
+  var MOST_FOUND = 500;
+
+  if (standalone && doc && window.Highlight && window.CSS && CSS.highlights) {
+    var matches = [];
+    var matchAt = -1;
+    var searching = 0;
+    var searched = "";
+    var everyMatch = new Highlight();
+    var thisMatch = new Highlight();
+    // Over a mark, where the two meet.
+    everyMatch.priority = 1;
+    thisMatch.priority = 2;
+    CSS.highlights.set("lectern-find", everyMatch);
+    CSS.highlights.set("lectern-find-current", thisMatch);
+
+    var chevron = function (path) {
+      return (
+        '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="' + path + '" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      );
+    };
+
+    // In the bar in place of everything else there, while it is open.
+    var findForm = document.createElement("form");
+    findForm.className = "find";
+    findForm.setAttribute("role", "search");
+    findForm.innerHTML =
+      '<input type="search" aria-label="Find in this document" placeholder="Find" enterkeyhint="search" ' +
+      'autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+      "<output></output>" +
+      '<button type="button" class="bar-button" data-step="-1" aria-label="Previous match">' +
+      chevron("M5 15l7-7 7 7") +
+      "</button>" +
+      '<button type="button" class="bar-button" data-step="1" aria-label="Next match">' +
+      chevron("M5 9l7 7 7-7") +
+      "</button>" +
+      '<button type="button" data-done>Done</button>';
+    var findInput = findForm.querySelector("input");
+    var findCount = findForm.querySelector("output");
+
+    var showMatch = function () {
+      thisMatch.clear();
+      findForm.querySelectorAll("[data-step]").forEach(function (button) {
+        button.disabled = matches.length < 2;
+      });
+      if (matchAt < 0) {
+        findCount.textContent = searched ? "No matches" : "";
+        return;
+      }
+      thisMatch.add(matches[matchAt]);
+      var all = matches.length < MOST_FOUND ? matches.length : MOST_FOUND + "+";
+      findCount.textContent = matchAt + 1 + " of " + all;
+      goToRange(matches[matchAt]);
+    };
+
+    var search = function () {
+      clearTimeout(searching);
+      everyMatch.clear();
+      matches = [];
+      matchAt = -1;
+      searched = findInput.value.trim();
+      if (searched) {
+        // As typed, in either case, with any white space where there is a space: the
+        // text of a page breaks its lines where the notebook's author did.
+        var words = searched.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+        var pattern = new RegExp(words, "gi");
+        var model = textModel();
+        for (var hit = pattern.exec(model.text); hit; hit = pattern.exec(model.text)) {
+          var range = rangeFor(model, hit.index, hit.index + hit[0].length);
+          everyMatch.add(range);
+          matches.push(range);
+          if (matches.length === MOST_FOUND) break;
+        }
+      }
+      // Start from the first one still to come, not from the top of the document. One
+      // that is hidden has no place on the page and is reached by going on.
+      matches.some(function (range, index) {
+        if (range.getBoundingClientRect().bottom <= bar.offsetHeight) return false;
+        matchAt = index;
+        return true;
+      });
+      if (matchAt < 0 && matches.length) matchAt = 0;
+      showMatch();
+    };
+
+    var step = function (by) {
+      if (!matches.length) return;
+      matchAt = (matchAt + by + matches.length) % matches.length;
+      showMatch();
+    };
+
+    var closeFind = function () {
+      clearTimeout(searching);
+      everyMatch.clear();
+      thisMatch.clear();
+      matches = [];
+      matchAt = -1;
+      bar.removeAttribute("data-finding");
+      findForm.remove();
+    };
+
+    var findButton = document.createElement("button");
+    findButton.type = "button";
+    findButton.className = "bar-button find-open";
+    findButton.setAttribute("aria-label", "Find in this document");
+    findButton.innerHTML =
+      '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.2 15.2L20 20" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    (bar.querySelector("[data-open='toc']") || bar.querySelector("[data-open='settings']")).before(findButton);
+
+    findButton.addEventListener("click", function () {
+      bar.setAttribute("data-finding", "");
+      bar.appendChild(findForm);
+      // Here, in the tap itself: a tablet brings up its keyboard for nothing later.
+      findInput.focus();
+      findInput.select();
+      // What was looked for last is still in the field.
+      search();
+    });
+    findInput.addEventListener("input", function () {
+      clearTimeout(searching);
+      // On e-ink every letter would be a repaint of the page; there it waits for Return.
+      if (!eink()) searching = setTimeout(search, 200);
+    });
+    findForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (findInput.value.trim() === searched) step(1);
+      else search();
+    });
+    findForm.addEventListener("click", function (event) {
+      var button = event.target.closest("button");
+      if (!button) return;
+      if (button.dataset.step) step(Number(button.dataset.step));
+      else closeFind();
+    });
+    findForm.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeFind();
     });
   }
 

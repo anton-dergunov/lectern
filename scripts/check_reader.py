@@ -5,7 +5,8 @@
 Runs against the test fixtures on a local port, in Chromium and WebKit. Checks the top
 bar hiding, the reading position surviving a reload and a text-size change, settings,
 the contents list, folding sections, long output, the e-ink theme's page turning, marking
-text, going back and forward between documents, and what happens when the server stops.
+text, going back and forward between documents, finding words and coming back to the last
+page in a Home Screen app, and what happens when the server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
 """
@@ -913,6 +914,122 @@ def run(engine_name: str, playwright) -> bool:
                 )
             )
             walker.close()
+
+    # ---- A Home Screen app: finding words, and opening where it was closed ----
+    with tempfile.TemporaryDirectory() as work:
+        shelf = Path(work, "shelf")
+        Path(shelf, "more").mkdir(parents=True)
+        prose = "Sentence after sentence of prose to read. " * 30
+        first_text = (
+            f"# First\n\n## One\n\nA walrus here. {prose}\n\n"
+            f"## Two\n\nThe Walrus again, and a\nwalrus more. {prose}\n\n"
+            f"## Three\n\nSee [the other](second.md).\n\n{prose}\n"
+        )
+        Path(shelf, "first.md").write_text(first_text)
+        Path(shelf, "second.md").write_text(f"# Second\n\n{prose}\n")
+        Path(shelf, "more", "third.md").write_text(f"# Third\n\n{prose}\n")
+        home_screen = browser.new_context(viewport={"width": 820, "height": 1180})
+        # What Safari says of a page opened from its icon.
+        home_screen.add_init_script(
+            """Object.defineProperty(navigator, 'standalone', {get: () => true, configurable: true});
+               if (!localStorage.getItem('lectern:prefs'))
+                 localStorage.setItem('lectern:prefs', '{"size": 19, "width": "m"}')"""
+        )
+
+        def launch(library: LocalServer, lands_on: str) -> Page:
+            """The icon tapped again: a new page, with nothing kept from the one before."""
+            opened = home_screen.new_page()
+            opened.on("pageerror", lambda error: errors.append(str(error)))
+            opened.goto(library.origin + "/")
+            try:
+                opened.wait_for_url(lands_on, timeout=5000)
+            except Exception:
+                pass
+            return opened
+
+        with LocalServer(shelf) as library:
+            app = home_screen.new_page()
+            app.on("pageerror", lambda error: errors.append(str(error)))
+            app.goto(library.url("first.md"))
+            found = "CSS.highlights.get('lectern-find').size"
+            count = app.locator(".find output")
+            app.locator("#Two .fold").click()
+            app.get_by_role("button", name="Find in this document").click()
+            alone = not app.get_by_role("button", name="Reading settings").is_visible()
+            results.append(check("the find field takes the bar's place", alone))
+            app.get_by_role("searchbox").fill("walrus")
+            app.wait_for_timeout(500)
+            said = count.inner_text()
+            results.append(
+                check(
+                    "words are found in either case", said == "1 of 3", (said, app.evaluate(found))
+                )
+            )
+            results.append(check("and all painted", app.evaluate(found) == 3))
+            hidden = not app.locator("#Two + p").is_visible()
+            app.get_by_role("button", name="Next match").click()
+            unfolded = hidden and app.locator("#Two + p").is_visible()
+            said = count.inner_text()
+            results.append(
+                check("going on opens a folded section", unfolded and said == "2 of 3", said)
+            )
+            app.get_by_role("searchbox").fill("a walrus")
+            app.wait_for_timeout(500)
+            said = count.inner_text()
+            results.append(check("a space matches the end of a line", said.endswith("of 2"), said))
+            app.get_by_role("searchbox").fill("zebra")
+            app.get_by_role("searchbox").press("Enter")
+            said = count.inner_text()
+            results.append(check("nothing found is said", said == "No matches", said))
+            app.locator(".find").get_by_role("button", name="Done").click()
+            cleared = app.evaluate(found) == 0 and app.locator(".find").count() == 0
+            cleared = cleared and app.get_by_role("button", name="Reading settings").is_visible()
+            results.append(check("done gives the bar back", cleared))
+            page.goto(library.url("first.md"))
+            results.append(
+                check("a browser is left to its own find", page.locator(".find-open").count() == 0)
+            )
+
+            app.get_by_role("link", name="the other").click()
+            app.wait_for_url(library.url("second.md"))
+            app.close()
+            again = launch(library, library.url("second.md"))
+            back = again.locator(".bar a.back").get_attribute("aria-label")
+            resumed = again.url == library.url("second.md") and back == "Back to First"
+            results.append(
+                check("the app opens where it was, with the way back", resumed, again.url)
+            )
+            again.wait_for_load_state("load")
+            again.goto(library.url("more/"))
+            again.close()
+            again = launch(library, library.url("more/"))
+            results.append(
+                check("a listing is a place to open at too", again.url == library.url("more/"))
+            )
+            again.goto(library.url("more/third.md"))
+            again.wait_for_load_state("load")
+            again.evaluate("localStorage.setItem('lectern:resuming', '1')")
+            again.close()
+            again = launch(library, library.url(""))
+            kept = again.evaluate(
+                "['lectern:last', 'lectern:resuming'].filter(k => k in localStorage)"
+            )
+            # Arriving at the listing is itself remembered; what must be gone is the document.
+            left = again.url == library.url("") and "lectern:resuming" not in kept
+            results.append(check("a page that never loaded is not opened again", left, again.url))
+            again.goto(library.url("more/third.md"))
+            again.wait_for_load_state("load")
+            again.close()
+            Path(shelf, "more", "third.md").unlink()
+            again = launch(library, library.url(""))
+            results.append(
+                check("nor is one that is gone", again.url == library.url(""), again.url)
+            )
+            again.close()
+            page.goto(library.origin + "/")
+            page.wait_for_url(library.url(""))
+            results.append(check("a browser starts at the listing", True))
+        home_screen.close()
 
     # ---- A static build, opened straight from the disk ----
     with tempfile.TemporaryDirectory() as site:
