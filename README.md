@@ -29,13 +29,13 @@ A notebook with its outputs saved is a document, and a tablet is a better place 
 
 Lectern never starts a kernel and never runs a cell, which is why it needs no password or token. The only thing it writes is the file of highlights and notes you make while reading, and that can be switched off.
 
-## How it works
+## What it hands out
 
-Notebooks are converted with nbconvert, using a template of lectern's own that produces plain HTML for the page shell and stylesheet in this repository. The server is Python's standard library HTTP server and answers only `GET` and `HEAD`, apart from the one request that saves a document's notes. Rendered pages are kept in memory and re-rendered when the file changes on disk.
-
-What the server will hand out is limited to notebooks, markdown files and images under the directories you serve. Hidden files, paths that leave the directory (including through symlinks) and every other file type get a 404. Requests whose `Host` header is not this machine's `.local` name, `localhost` or an IP address are refused.
+Only notebooks, markdown files and images under the directories you serve. Hidden files, paths that leave the directory (including through symlinks), anything a `.lecternignore` names and every other file type get a 404. Requests whose `Host` header is not this machine's `.local` name, `localhost` or an IP address are refused.
 
 **Anyone on the same network can read what you serve**, including anything a notebook printed into its outputs. Use it on a network you trust, and stop it when you leave.
+
+How it is built is in [docs/architecture.md](docs/architecture.md).
 
 ## Install
 
@@ -84,6 +84,21 @@ lectern notes                             # the same for every document under th
 Each passage is printed under its heading, with the cell number for code, followed by the note made on it.
 
 Saving a mark is the one thing a device can change on the laptop, and anyone who can reach lectern can add or delete marks. To keep lectern to reading only, start it with `lectern serve --no-notes`, or put `notes = false` in `~/.config/lectern/config.toml`. Sites made with `lectern build` have no marking and never include anyone's notes.
+
+### Leaving things out
+
+A `.lecternignore` file at the top of a served folder names what lectern should leave out of it:
+
+```
+# not for the tablet
+private/
+*.draft.md
+notes/scratch.ipynb
+```
+
+A line with no `/` in it is a file or folder name, left out wherever it appears; a line with a `/` is a path from the top of the folder. `*` and `?` work as in a shell (`*` also matches `/`), letter case does not matter, and a folder that is left out takes everything in it along. Lines starting with `#` are comments.
+
+What is left out is not listed and cannot be opened by its address either, images included. A change to the file takes effect at once. `lectern build` leaves the same things out of a published site.
 
 ### Folders you read often
 
@@ -192,7 +207,7 @@ uv run --group shots python scripts/shots.py --out shots  # screenshots at the i
 
 After a deliberate change to how notebooks render, `uv run pytest --update-golden` rewrites `tests/golden`; read the diff before committing it.
 
-`HANDOFF.md` holds the design and the milestones still to build; `docs/tasks/plan.md` holds ideas outside them.
+[docs/architecture.md](docs/architecture.md) describes the approach, how a page is made and where each part lives.
 
 ## License and credits
 
