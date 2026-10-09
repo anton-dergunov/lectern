@@ -741,6 +741,12 @@ def run(engine_name: str, playwright) -> bool:
 
                 listed.click()
                 sheet = marker.locator("#notes")
+                # Not modal: that makes the page inert, and WebKit takes marks off inert text.
+                behind = marker.evaluate(
+                    """() => !document.querySelector('#notes').matches(':modal')
+                             && !document.querySelector('.sheet-shade').hidden"""
+                )
+                results.append(check("the list leaves the page behind it as it is", behind))
                 entries = sheet.locator(".noted")
                 lost = sheet.locator("div.noted")
                 shown = entries.count() == 4 and lost.count() == 1
@@ -763,7 +769,10 @@ def run(engine_name: str, playwright) -> bool:
                 settle(marker)
                 dropped = lost.count() == 0 and "gone" not in {note["id"] for note in kept()}
                 results.append(check("a mark with nowhere to be can be removed there", dropped))
-                sheet.get_by_role("button", name="Done").click()
+                marker.mouse.click(20, 400)
+                settle(marker)
+                shut = not sheet.is_visible() and marker.locator(".sheet-shade").is_hidden()
+                results.append(check("a tap beside the list puts it away", shut))
 
                 # The Mac asleep: what is marked waits, and is saved when it is back.
                 desk.stop()
@@ -796,10 +805,18 @@ def run(engine_name: str, playwright) -> bool:
                 marker.mouse.click(noted["x"], noted["y"])
                 shown = pop.locator("p").text_content() == "Is this the third?"
                 results.append(check("a tap on the mark shows the note", shown))
+                marker.evaluate("window.notedBefore = CSS.highlights.get('lectern-note')")
                 pop.get_by_role("button", name="Remove").click()
                 settle(marker)
                 removed = marker.evaluate(MARKED)["noted"] == 0 and len(kept()) == 3
                 results.append(check("Remove takes the mark and its note", removed, kept()))
+                # Safari repaints the words a range leaves, not those of a replaced highlight.
+                emptied = marker.evaluate(
+                    "CSS.highlights.get('lectern-note') === window.notedBefore"
+                )
+                results.append(
+                    check("by emptying the highlight it was in, not replacing it", emptied)
+                )
 
                 marker.get_by_role("button", name="Reading settings").click()
                 marker.get_by_role("button", name="E-ink").click()

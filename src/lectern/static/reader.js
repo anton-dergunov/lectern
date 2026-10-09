@@ -262,16 +262,50 @@
   );
 
   // ---- Sheets: contents and settings ----
+  // A sheet is a dialog shown over a shade, not a modal one: a modal dialog makes the page
+  // behind it inert, and WebKit moves a highlight off text that is inert, so every mark
+  // left the page while a sheet was open. The shade and Escape do what the backdrop did.
+
+  var shade = document.createElement("div");
+  shade.className = "sheet-shade";
+  shade.hidden = true;
+  document.body.appendChild(shade);
 
   function openSheet(sheet) {
     showBar(true);
-    sheet.showModal();
+    shade.hidden = false;
+    sheet.addEventListener(
+      "close",
+      function () {
+        shade.hidden = true;
+      },
+      { once: true }
+    );
+    sheet.show();
   }
+
+  function openedSheet() {
+    return document.querySelector("dialog.sheet[open]");
+  }
+
+  shade.addEventListener("click", function (event) {
+    // The tap that puts the sheet away does nothing more, such as turn the page.
+    event.preventDefault();
+    var sheet = openedSheet();
+    if (sheet) sheet.close();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    var sheet = event.key === "Escape" && openedSheet();
+    // The note editor is modal and closes by itself.
+    if (!sheet || document.querySelector("dialog[open]:not(.sheet)")) return;
+    event.preventDefault();
+    sheet.close();
+  });
 
   document.querySelectorAll("dialog.sheet").forEach(function (sheet) {
     sheet.addEventListener("click", function (event) {
-      // A click on the dialog element itself is a click on the backdrop around its panel.
-      if (event.target === sheet || event.target.closest("[data-close]")) sheet.close();
+      if (event.target.closest("[data-close]")) sheet.close();
     });
   });
 
@@ -998,10 +1032,16 @@
     var rev = "";
     // The marks that are on the page, each with where it is, in reading order.
     var painted = [];
+    // Registered once and refilled: Safari repaints the words of a range taken out of a
+    // highlight, but not those of a highlight replaced by another, so a removed mark stayed.
+    var plain = new Highlight();
+    var noted = new Highlight();
+    CSS.highlights.set("lectern-mark", plain);
+    CSS.highlights.set("lectern-note", noted);
 
     var paint = function () {
-      var plain = new Highlight();
-      var noted = new Highlight();
+      plain.clear();
+      noted.clear();
       painted = [];
       if (marks.length) {
         var model = textModel();
@@ -1016,8 +1056,6 @@
           return a.at - b.at;
         });
       }
-      CSS.highlights.set("lectern-mark", plain);
-      CSS.highlights.set("lectern-note", noted);
       listButton.hidden = !marks.length;
     };
 
@@ -1402,7 +1440,7 @@
       openSheet(list);
     });
     list.addEventListener("click", function (event) {
-      if (event.target === list || event.target.closest("[data-close]")) list.close();
+      if (event.target.closest("[data-close]")) list.close();
     });
 
     // ---- Starting ----

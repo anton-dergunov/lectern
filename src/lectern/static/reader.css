@@ -517,7 +517,14 @@ td.num { text-align: right; }
 
 /* ---- Sheets: contents and settings ---- */
 
+/* Shown with show(), not showModal() (see reader.js), so it is placed and scrolled here
+   and the shade under it stands in for the backdrop. */
 dialog.sheet {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 21;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   width: min(21rem, 88vw);
   max-width: none;
   height: 100%;
@@ -530,7 +537,7 @@ dialog.sheet {
   color: var(--fg);
   font-family: var(--font-ui);
 }
-dialog.sheet::backdrop { background: var(--shade); }
+.sheet-shade { position: fixed; inset: 0; z-index: 20; background: var(--shade); }
 /* Takes the focus when the sheet opens, so no button starts out ringed. */
 .sheet-panel:focus { outline: none; }
 .sheet-panel {
