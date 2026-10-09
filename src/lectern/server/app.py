@@ -379,7 +379,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             heading=crumbs[-1].name,
             crumbs=crumbs,
             back=crumbs[-2].href if len(crumbs) > 1 else None,
-            listing=library.listing(target),
+            listing=library.listing(target, root=self.server.roots.get(root_name)),
         )
         self._send(HTTPStatus.OK, html.encode(), HTML)
 

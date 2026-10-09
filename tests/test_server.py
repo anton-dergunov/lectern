@@ -119,6 +119,23 @@ def test_not_served(server, path: str):
     assert "SECRET" not in body and "outside" not in body
 
 
+def test_what_the_folder_ignores_is_not_served(server, root: Path, tmp_path: Path):
+    (root / ".lecternignore").write_text("docs\n")
+
+    for path in ("/proj/docs/note.md", "/proj/Docs/note.md", "/proj/docs/pixel.png", "/proj/docs/"):
+        assert request(server, path)[0].status == 404, path
+    assert "note.md" not in request(server, "/proj/")[1]
+    assert request(server, "/proj/.lecternignore")[0].status == 404
+    before = files(tmp_path)
+    assert request(server, "/_notes/proj/docs/note.md")[0].status == 404
+    assert put_notes(server, "/_notes/proj/docs/note.md")[0].status == 404
+    assert files(tmp_path) == before
+
+    # Followed while running, as the file is edited.
+    (root / ".lecternignore").write_text("")
+    assert request(server, "/proj/docs/note.md")[0].status == 200
+
+
 def test_unknown_host_is_refused(server):
     response, _ = request(server, "/proj/", headers={"Host": "evil.example"})
     assert response.status == 421

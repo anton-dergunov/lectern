@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
-from .paths import DOC_SUFFIXES
+from .paths import DOC_SUFFIXES, ignored
 
 SKIP_DIRS = {
     "_site",
@@ -58,26 +58,35 @@ class Listing:
     recent: list[Entry]
 
 
-def discover(top: Path) -> list[Path]:
-    """Notebooks and markdown files under `top`, skipping hidden and build directories."""
-    found: list[Path] = []
+def discover(top: Path, root: Path | None = None) -> list[Path]:
+    """Notebooks and markdown files under `top`, skipping hidden and build directories.
 
-    def walk(directory: str) -> None:
+    `root` is the served folder `top` is inside, whose `.lecternignore` says what else to
+    leave out; `top` itself when not given.
+    """
+    found: list[Path] = []
+    root = top if root is None else root
+    try:
+        above = top.resolve().relative_to(root.resolve()).parts
+    except ValueError:
+        root, above = top, ()
+
+    def walk(directory: str, above: tuple[str, ...]) -> None:
         try:
             entries = sorted(os.scandir(directory), key=lambda e: e.name.lower())
         except OSError:
             return
         for entry in entries:
-            if entry.name.startswith("."):
+            if entry.name.startswith(".") or ignored(root, (*above, entry.name)):
                 continue
             # Symlinked directories are not followed: they may loop or leave the root.
             if entry.is_dir(follow_symlinks=False):
                 if entry.name not in SKIP_DIRS:
-                    walk(entry.path)
+                    walk(entry.path, (*above, entry.name))
             elif entry.is_file() and Path(entry.name).suffix.lower() in DOC_SUFFIXES:
                 found.append(Path(entry.path))
 
-    walk(str(top))
+    walk(str(top), above)
     return found
 
 
@@ -164,14 +173,16 @@ def listing(
     top: Path,
     paths: list[Path] | None = None,
     href: Callable[[PurePosixPath], str] = _source_href,
+    root: Path | None = None,
 ) -> Listing:
     """Everything readable under `top`, grouped by directory, with links relative to it.
 
-    A static build passes the documents it chose and where each one's page is.
+    A static build passes the documents it chose and where each one's page is. The server
+    passes the served folder as `root` when `top` is a directory inside it.
     """
     groups: dict[tuple[str, ...], Group] = {}
     entries: list[Entry] = []
-    for path in discover(top) if paths is None else paths:
+    for path in discover(top, root) if paths is None else paths:
         rel = path.relative_to(top)
         try:
             description = describe(path)

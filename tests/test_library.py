@@ -9,6 +9,19 @@ def test_discover_skips_hidden_build_and_other_files(root: Path):
     assert found == {"notebooks/sample.ipynb", "docs/note.md", "escape.md"}
 
 
+def test_discover_leaves_out_what_the_root_ignores(root: Path):
+    (root / "notebooks" / "drafts").mkdir()
+    (root / "notebooks" / "drafts" / "rough.md").write_text("# Rough\n")
+    (root / ".lecternignore").write_text("drafts\n/docs\n")
+
+    found = {p.relative_to(root).as_posix() for p in library.discover(root)}
+    assert found == {"notebooks/sample.ipynb", "escape.md"}
+    # A folder inside the root is listed by the root's list, not by one of its own.
+    inside = library.discover(root / "notebooks", root)
+    assert [p.name for p in inside] == ["sample.ipynb"]
+    assert [g.name for g in library.listing(root / "notebooks", root=root).groups] == [""]
+
+
 def test_describe_notebook(root: Path):
     description = library.describe(root / "notebooks" / "sample.ipynb")
 

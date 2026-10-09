@@ -96,6 +96,15 @@ def test_nobodys_notes_are_published(src: Path, tmp_path: Path):
             assert "PRIVATE REMARK" not in (out / name).read_text(), name
 
 
+def test_what_the_folder_ignores_is_not_published(src: Path, tmp_path: Path):
+    (src / ".lecternignore").write_text("deep.ipynb\n*.png\n")
+    out = tmp_path / "site"
+    build(src, out, options())
+
+    assert "study/a/b/deep.html" not in files(out)
+    assert "docs/notes.html" in files(out) and "docs/dot.png" not in files(out)
+
+
 def test_pages_stand_alone_without_a_server(src: Path, tmp_path: Path):
     out = tmp_path / "site"
     build(src, out, options())

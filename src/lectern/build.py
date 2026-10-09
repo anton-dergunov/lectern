@@ -11,7 +11,7 @@ from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 
 from . import library
-from .paths import IMAGE_SUFFIXES
+from .paths import IMAGE_SUFFIXES, ignored
 from .render import Rendered, render_document
 from .render.page import CSP, STATIC, Crumb, asset_hash, render_page
 
@@ -159,7 +159,12 @@ def _localise(
     images = []
     for _, parts in _relative_links(soup, "img", "src"):
         linked = _target(rel, parts.path)
-        if linked and linked.suffix.lower() in IMAGE_SUFFIXES and (src / linked).is_file():
+        if (
+            linked
+            and linked.suffix.lower() in IMAGE_SUFFIXES
+            and (src / linked).is_file()
+            and not ignored(src, linked.parts)
+        ):
             images.append(linked)
     return str(soup), images
 
