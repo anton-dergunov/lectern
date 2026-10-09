@@ -954,7 +954,13 @@ def run(engine_name: str, playwright) -> bool:
             found = "CSS.highlights.get('lectern-find').size"
             count = app.locator(".find output")
             app.locator("#Two .fold").click()
+            top = "e => e.getBoundingClientRect().top"
+            app.evaluate("window.scrollTo(0, 300)")
+            settle(app)
+            before = app.locator("#One").evaluate(top)
             app.get_by_role("button", name="Find in this document").click()
+            moved = app.locator("#One").evaluate(top) - before
+            results.append(check("opening the find field moves nothing", abs(moved) < 1, moved))
             alone = not app.get_by_role("button", name="Reading settings").is_visible()
             results.append(check("the find field takes the bar's place", alone))
             app.get_by_role("searchbox").fill("walrus")
@@ -973,6 +979,12 @@ def run(engine_name: str, playwright) -> bool:
             results.append(
                 check("going on opens a folded section", unfolded and said == "2 of 3", said)
             )
+            held = app.locator(".bar").evaluate(
+                "e => [getComputedStyle(e).position, e.getBoundingClientRect().top, e.offsetHeight,"
+                " document.activeElement === e.querySelector('input')]"
+            )
+            fixed = held[0] == "fixed" and held[1] == 0 and held[2] >= 64 and held[3]
+            results.append(check("the field stays at the top, with the caret in it", fixed, held))
             app.get_by_role("searchbox").fill("a walrus")
             app.wait_for_timeout(500)
             said = count.inner_text()

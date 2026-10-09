@@ -1087,6 +1087,13 @@
     return at >= 0 ? at : best(0, model.text.length, 0, mark.prefix || mark.suffix ? 1 : 0);
   }
 
+  // How far down the page a keyboard has pushed what is seen of it, while the find field
+  // is up. Nothing the rest of the time: a page zoomed with two fingers is left alone.
+  function pannedBy() {
+    var seen = window.visualViewport;
+    return seen && bar.hasAttribute("data-finding") ? Math.max(0, seen.offsetTop) : 0;
+  }
+
   // Brings a stretch of the text into view, a little below the bar, whatever hides it.
   function goToRange(range) {
     var place = range.startContainer.parentElement;
@@ -1099,7 +1106,7 @@
     if (clamped) clamped.classList.remove("clamped");
     holdBar = Date.now() + 600;
     var top = window.scrollY + range.getBoundingClientRect().top - readingLine() - 2 * lineHeight();
-    window.scrollTo({ top: top, behavior: "instant" });
+    window.scrollTo({ top: top - pannedBy(), behavior: "instant" });
     lastY = window.scrollY;
     leaveTurns();
     updatePager();
@@ -1605,7 +1612,9 @@
       );
     };
 
-    // In the bar in place of everything else there, while it is open.
+    // In the bar in place of everything else there, while it is open. The bar is then
+    // fixed to the top of what is seen and larger: it is what the reader is working with,
+    // where the rest of the time it is something to read past.
     var findForm = document.createElement("form");
     findForm.className = "find";
     findForm.setAttribute("role", "search");
@@ -1674,6 +1683,16 @@
       showMatch();
     };
 
+    // The bar's place in the page while it is out of it, so that nothing moves up.
+    var findSpace = document.createElement("div");
+    // A keyboard coming up can slide the page under the screen's top edge, and what is
+    // fixed goes with the page. The bar is moved back down by as much.
+    var pinBar = function () {
+      var by = pannedBy();
+      bar.style.transform = by ? "translateY(" + by + "px)" : "";
+    };
+    var pinOn = [window.visualViewport, window];
+
     var closeFind = function () {
       clearTimeout(searching);
       everyMatch.clear();
@@ -1681,7 +1700,17 @@
       matches = [];
       matchAt = -1;
       bar.removeAttribute("data-finding");
+      bar.style.transform = "";
       findForm.remove();
+      findSpace.remove();
+      pinOn.forEach(function (target) {
+        if (!target) return;
+        target.removeEventListener("resize", pinBar);
+        target.removeEventListener("scroll", pinBar);
+      });
+      // The bar is a different height again, and the turns were measured from it.
+      leaveTurns();
+      updatePager();
     };
 
     var findButton = document.createElement("button");
@@ -1694,10 +1723,21 @@
     (bar.querySelector("[data-open='toc']") || bar.querySelector("[data-open='settings']")).before(findButton);
 
     findButton.addEventListener("click", function () {
+      findSpace.style.height = bar.offsetHeight + "px";
+      bar.before(findSpace);
       bar.setAttribute("data-finding", "");
       bar.appendChild(findForm);
-      // Here, in the tap itself: a tablet brings up its keyboard for nothing later.
-      findInput.focus();
+      showBar(true);
+      pinOn.forEach(function (target) {
+        if (!target) return;
+        target.addEventListener("resize", pinBar);
+        target.addEventListener("scroll", pinBar);
+      });
+      leaveTurns();
+      updatePager();
+      // Here, in the tap itself: a tablet brings up its keyboard for nothing later. And
+      // without the scroll a browser makes towards a field it has just given the caret.
+      findInput.focus({ preventScroll: true });
       findInput.select();
       // What was looked for last is still in the field.
       search();
@@ -1720,6 +1760,11 @@
     });
     findForm.addEventListener("keydown", function (event) {
       if (event.key === "Escape") closeFind();
+    });
+    // A tap on a button here leaves the caret where it is: taking it out of the field
+    // would put the keyboard away and move the page under the bar at every step.
+    findForm.addEventListener("mousedown", function (event) {
+      if (event.target.closest("button")) event.preventDefault();
     });
   }
 
