@@ -273,14 +273,14 @@ class ReaderHandler(BaseHTTPRequestHandler):
         root = self.server.roots.get(root_name)
         target = resolve(root, rel) if root else None
         if target is None or not target.exists():
-            self._not_found()
+            self._not_found(path)
         elif target.is_dir():
             if not path.endswith("/"):
                 self._redirect(raw + "/")
             else:
                 self._listing(root_name, rel, target)
         elif path.endswith("/"):
-            self._not_found()
+            self._not_found(path)
         elif target.suffix.lower() in DOC_SUFFIXES:
             self._document(root_name, rel, target)
         else:
@@ -387,7 +387,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
         try:
             hit = self.server.cache.get(target)
         except FileNotFoundError:
-            self._not_found()
+            self._not_found(f"/{root_name}/{rel}")
             return
         except RenderError as error:
             self._error(
@@ -395,6 +395,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
                 "This file could not be read. If it is being saved, the page will retry by itself.",
                 detail=str(error),
                 retry=2,
+                path=f"/{root_name}/{rel}",
             )
             return
         # The shell is part of the page, so a new stylesheet or template is a new version.
@@ -440,11 +441,38 @@ class ReaderHandler(BaseHTTPRequestHandler):
         caching = "public, max-age=31536000, immutable" if fresh else "no-cache"
         self._send(HTTPStatus.OK, target.read_bytes(), content_type, {"Cache-Control": caching})
 
-    def _not_found(self) -> None:
-        self._error(HTTPStatus.NOT_FOUND, "There is nothing to read at this address.")
+    def _not_found(self, path: str = "") -> None:
+        self._error(HTTPStatus.NOT_FOUND, "There is nothing to read at this address.", path=path)
 
-    def _error(self, status: HTTPStatus, message: str, detail: str = "", retry: int = 0) -> None:
+    def _nearest_listing(self, path: str) -> Crumb:
+        """The closest folder above `path` that is there to be read, or the start."""
+        root_name, _, rel = path.lstrip("/").partition("/")
+        root = self.server.roots.get(root_name)
+        if root is None:
+            return Crumb("Lectern", "/_home")
+        parts = [p for p in rel.split("/") if p]
+        # A path ending in / names a folder, which may itself be what is missing.
+        depth = len(parts) - (0 if path.endswith("/") else 1)
+        while depth > 0:
+            target = resolve(root, "/".join(parts[:depth]))
+            if target is not None and target.is_dir():
+                break
+            depth -= 1
+        return self._crumbs(root_name, parts[:depth])[-1]
+
+    def _error(
+        self,
+        status: HTTPStatus,
+        message: str,
+        detail: str = "",
+        retry: int = 0,
+        path: str = "",
+    ) -> None:
+        """A page saying what went wrong, with a way back and a way to the start: in a
+        Home Screen app there are no browser buttons to leave it by."""
         roots = self.server.roots
+        only = next(iter(roots)) if len(roots) == 1 else None
+        back = self._nearest_listing(path) if path else Crumb("Lectern", "/_home")
         html = render_page(
             "error.html.j2",
             title=status.phrase,
@@ -452,9 +480,10 @@ class ReaderHandler(BaseHTTPRequestHandler):
             message=message,
             detail=detail,
             retry=retry,
-            crumbs=self._crumbs(next(iter(roots)), [])
-            if len(roots) == 1
-            else [Crumb("Lectern", "/_home")],
+            crumbs=self._crumbs(only, []) if only else [Crumb("Lectern", "/_home")],
+            back=back.href,
+            back_name=back.name,
+            start=only or "the list of folders",
         )
         headers = {"Retry-After": str(retry)} if retry else {}
         self._send(status, html.encode(), HTML, headers)

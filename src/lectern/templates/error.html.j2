@@ -7,11 +7,16 @@
 {% endblock %}
 
 {% block main %}
-<main class="listing">
+<main class="listing" data-error>
 <h1>{{ heading }}</h1>
 <p class="empty">{{ message }}</p>
 {% if detail %}
 <pre class="error">{{ detail }}</pre>
 {% endif %}
+{# reader.js points "Go back" at the page the reader came from, as it does the chevron. #}
+<p class="actions">
+  <a class="action" href="{{ back }}" data-back>Go back</a>
+  <a class="action" href="/_home">Open {{ start }}</a>
+</p>
 </main>
 {% endblock %}

@@ -44,11 +44,22 @@ def config_path() -> Path:
     return Path(directory).expanduser() / "config.toml"
 
 
+def check_name(name: str) -> str:
+    """A name chosen for a folder, which must not be taken for one of lectern's own
+    addresses (`/_home`, `/_static`, ...) or for a hidden file."""
+    if not name or name.startswith((".", "_")) or "/" in name:
+        raise ConfigError(f"the name {name!r} must not be empty, contain / or start with . or _")
+    return name
+
+
 def root_name(path: Path) -> str:
-    """The name a folder is served under: the first segment of its URLs."""
-    name = path.name
-    if not name or name.startswith((".", "_")):
-        raise ConfigError(f"cannot serve {path}: its name must not be empty or start with . or _")
+    """The name a folder is served under: the first segment of its URLs.
+
+    A leading `.` or `_` is left out of it, so `_drafts` is served as `drafts`.
+    """
+    name = path.name.lstrip("._")
+    if not name:
+        raise ConfigError(f"cannot serve {path} under its own name; give it one with --name")
     return name
 
 
@@ -108,10 +119,7 @@ def add_root(where: Path, name: str | None = None) -> tuple[Config, str]:
     if not where.is_dir():
         raise ConfigError(f"{where} is not a directory")
     config = load()
-    if name is None:
-        name = root_name(where)
-    elif not name or name.startswith((".", "_")) or "/" in name:
-        raise ConfigError(f"the name {name!r} must not be empty, contain / or start with . or _")
+    name = root_name(where) if name is None else check_name(name)
     taken = config.roots.get(name)
     if taken and taken.resolve() != where:
         raise ConfigError(f"{name} is already {taken}; give this one another name with --name")

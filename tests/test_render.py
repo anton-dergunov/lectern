@@ -35,7 +35,7 @@ def test_notebook_structure(root: Path):
     assert "world &lt;b&gt;" in fragment
     assert '<pre class="stream wrap stderr">' in fragment
     assert '<pre class="error">' in fragment and "ansi-red-fg" in fragment
-    assert '<table class="dataframe data-table">' in fragment
+    assert '<table class="dataframe">' in fragment
     assert '<td class="num">0.75</td>' in fragment
 
 

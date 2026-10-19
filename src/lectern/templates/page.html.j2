@@ -34,7 +34,7 @@
 {% block body %}
 <header class="bar">
 {% if back %}
-  <a class="bar-button back" href="{{ back }}" aria-label="Back to {{ crumbs[-1].name if crumbs else 'the listing' }}">
+  <a class="bar-button back" href="{{ back }}" aria-label="Back to {{ back_name or (crumbs[-1].name if crumbs else 'the listing') }}">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </a>
 {% endif %}

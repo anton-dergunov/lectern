@@ -451,8 +451,11 @@ thead th {
 }
 /* The index column of a DataFrame. */
 tbody th { color: var(--fg-muted); font-weight: 400; }
-td.num { text-align: right; }
-.data-table { white-space: nowrap; }
+td.num { text-align: right; white-space: nowrap; }
+/* Text wraps, and the browser shares the column out by how much each column holds, so the
+   rows come out of a similar height. A cell of several words keeps a few of them to a line;
+   when those cells cannot all fit, the table scrolls sideways in its wrapper. */
+th.wide, td.wide { min-width: 8em; }
 .cell.md table { font-size: 0.8rem; }
 
 /* ---- Listings and error pages ---- */
@@ -514,6 +517,33 @@ td.num { text-align: right; }
 .row .meta { flex: none; max-width: 55%; text-align: right; overflow-wrap: anywhere; }
 .empty { color: var(--fg); }
 .listing .error { margin-top: 1rem; }
+
+/* The way out of an error page. */
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.6rem; }
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  color: var(--fg-strong);
+  font: 600 0.8rem/1 var(--font-ui);
+  text-decoration: none;
+}
+
+/* A listing's two views: the overview of what there is to read, and the folder as files.
+   Which one shows is set on <html> by boot.js; without it the overview shows. */
+.listing-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 1rem; }
+.listing-head h1 { min-width: 0; overflow-wrap: anywhere; }
+.view-switch { flex: none; }
+.view-switch button { min-width: 5.5rem; padding: 0 0.8rem; }
+.files-view { display: none; margin-top: 1rem; }
+[data-listing="files"] .files-view { display: block; }
+[data-listing="files"] .overview { display: none; }
+.files-view .row-title { display: flex; align-items: center; gap: 0.5rem; }
+.files-view .row-title svg { flex: none; color: var(--fg-muted); }
 
 /* ---- Sheets: contents and settings ---- */
 

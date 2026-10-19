@@ -52,10 +52,22 @@ class Group:
     pages: list[Entry] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class Folder:
+    """A folder directly inside the one listed, with how many documents are under it."""
+
+    name: str
+    href: str
+    documents: int
+
+
 @dataclass
 class Listing:
     groups: list[Group]
     recent: list[Entry]
+    # The folder as files: the folders in it that hold something, and its own documents.
+    folders: list[Folder] = field(default_factory=list)
+    here: list[Entry] = field(default_factory=list)
 
 
 def discover(top: Path, root: Path | None = None) -> list[Path]:
@@ -212,8 +224,18 @@ def listing(
         # A folder's README introduces it, so it leads the folder's pages.
         group.pages.sort(key=lambda e: not e.name.lower().startswith("readme."))
     recent = sorted(entries, key=lambda e: e.mtime, reverse=True)[:RECENT]
+
+    under: dict[str, int] = {}
+    for entry in entries:
+        first, slash, _ = entry.path.partition("/")
+        if slash:
+            under[first] = under.get(first, 0) + 1
+    folders = [
+        Folder(name, quote(name) + "/", under[name]) for name in sorted(under, key=str.lower)
+    ]
+    here = sorted((e for e in entries if "/" not in e.path), key=lambda e: e.name.lower())
     # In a small folder the strip would only repeat most of what is below it.
-    return Listing(ordered, recent if len(entries) > 2 * RECENT else [])
+    return Listing(ordered, recent if len(entries) > 2 * RECENT else [], folders, here)
 
 
 def count(root: Path) -> tuple[int, int]:

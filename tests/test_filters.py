@@ -9,13 +9,15 @@ def test_pandas_table_loses_its_own_styling():
     assert "<style" not in html
     assert "border=" not in html
     assert "text-align" not in html
-    assert '<div class="table-wrap"><table class="dataframe data-table">' in html
+    assert '<div class="table-wrap"><table class="dataframe">' in html
 
 
-def test_table_with_a_long_cell_is_a_prose_table():
-    html = str(clean_table_html(f"<table><tr><td>{'word ' * 20}</td></tr></table>"))
+def test_a_cell_of_several_words_is_kept_from_narrowing():
+    long = "Graphiti's prompts, driven by local code"
+    html = str(clean_table_html(f"<table><tr><td>{long}</td><td>mem0</td></tr></table>"))
 
-    assert 'class="prose-table"' in html
+    assert f'<td class="wide">{long}</td>' in html
+    assert "<td>mem0</td>" in html
 
 
 def test_only_numeric_cells_are_marked():

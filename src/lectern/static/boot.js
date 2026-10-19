@@ -11,6 +11,8 @@
     width: "m",
     hideCode: false,
     follow: false,
+    // A folder's listing: "overview" of what there is to read, or its "files".
+    listing: "overview",
     // The two below only apply in the e-ink theme.
     ink: "mono",
     noBar: false,
@@ -69,6 +71,7 @@
     if (["light", "dark", "system"].indexOf(prefs.mode) < 0) prefs.mode = DEFAULTS.mode;
     if (WIDTHS.indexOf(prefs.width) < 0) prefs.width = DEFAULTS.width;
     if (["mono", "colour"].indexOf(prefs.ink) < 0) prefs.ink = DEFAULTS.ink;
+    if (["overview", "files"].indexOf(prefs.listing) < 0) prefs.listing = DEFAULTS.listing;
     prefs.size = Math.min(SIZE.max, Math.max(SIZE.min, Math.round(prefs.size)));
     return prefs;
   }
@@ -81,6 +84,7 @@
     var theme = prefs.family === "eink" ? eink : prefs.family + "-" + mode;
     root.dataset.theme = theme;
     root.dataset.width = prefs.width;
+    root.dataset.listing = prefs.listing;
     root.style.setProperty("--size", prefs.size + "px");
     root.toggleAttribute("data-hide-code", prefs.hideCode);
     root.toggleAttribute("data-no-bar", prefs.noBar);

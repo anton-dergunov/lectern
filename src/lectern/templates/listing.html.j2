@@ -7,9 +7,41 @@
 </a></li>
 {% endmacro %}
 
+{% macro files(listing) %}
+<div class="files-view">
+<ul class="rows">
+{% for folder in listing.folders %}
+<li><a class="row" href="{{ folder.href }}">
+  <span class="row-title"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 7.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9a1.5 1.5 0 0 0-1.5-1.5h-7.4L10 5H4.5A1.5 1.5 0 0 0 3 6.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>{{ folder.name }}/</span>
+  <span class="meta">{{ folder.documents }} document{{ "" if folder.documents == 1 else "s" }}</span>
+</a></li>
+{% endfor %}
+{% for entry in listing.here %}
+<li><a class="row" href="{{ entry.href }}">
+  <span class="row-title">{{ entry.name }}</span>
+  <span class="meta">{{ entry.modified }}</span>
+</a></li>
+{% endfor %}
+</ul>
+</div>
+{% endmacro %}
+
 {% block main %}
 <main class="listing">
+{# A built site has a page for each document but none for a folder, so it has only the
+   overview. The switch is shown by reader.js, which is what remembers the choice. #}
+{% set switchable = listing is defined and listing.groups and not static_site %}
+{% if switchable %}
+<div class="listing-head">
 <h1>{{ heading }}</h1>
+<div class="choice view-switch" data-view-switch hidden>
+  <button type="button" data-pref="listing" data-value="overview">Overview</button>
+  <button type="button" data-pref="listing" data-value="files">Files</button>
+</div>
+</div>
+{% else %}
+<h1>{{ heading }}</h1>
+{% endif %}
 {% if description %}
 <p class="lede">{{ description }}</p>
 {% endif %}
@@ -24,6 +56,8 @@
 {% elif not listing.groups %}
 <p class="empty">No notebooks or markdown files here.</p>
 {% else %}
+{% if switchable %}{{ files(listing) }}{% endif %}
+<div class="overview">
 {% if listing.recent %}
 <section class="group">
 <h2>Recently changed</h2>
@@ -59,6 +93,7 @@
 {% endif %}
 </section>
 {% endfor %}
+</div>
 {% endif %}
 </main>
 {% endblock %}

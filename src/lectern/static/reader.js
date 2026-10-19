@@ -7,6 +7,8 @@
   var prefs = window.lectern.prefs;
   var bar = document.querySelector(".bar");
   var doc = document.querySelector("main.doc");
+  // Not Found and the like: as much a dead end as a document if it has no way back.
+  var errorPage = document.querySelector("main[data-error]");
 
   // ---- Is the server there? ----
 
@@ -200,6 +202,8 @@
   var TRAIL_KEEPS = 50;
   var address = location.pathname + location.search;
   var upLink = bar && bar.querySelector("a.back");
+  // An error page's own "Go back", which goes where the chevron does.
+  var backLink = document.querySelector("a[data-back]");
   var up = upLink && { href: upLink.getAttribute("href"), label: upLink.getAttribute("aria-label") };
 
   function syncTrail(arrival) {
@@ -243,14 +247,18 @@
 
     var previous = trail.list[trail.at - 1];
     var next = trail.list[trail.at + 1];
-    // On a document the chevron goes back to where the reader came from, and up to the
-    // folder only when they came from nowhere. A listing's chevron always goes up.
+    // On a document or an error page the chevron goes back to where the reader came from,
+    // and up to the folder only when they came from nowhere. A listing's chevron always
+    // goes up.
     if (upLink) {
-      var back = doc && previous;
-      upLink.setAttribute("href", back ? previous.url : up.href);
+      var back = (doc || errorPage) && previous;
+      [upLink, backLink].forEach(function (link) {
+        if (!link) return;
+        link.setAttribute("href", back ? previous.url : up.href);
+        if (back) link.dataset.trail = trail.at - 1;
+        else delete link.dataset.trail;
+      });
       upLink.setAttribute("aria-label", back ? "Back to " + previous.title : up.label);
-      if (back) upLink.dataset.trail = trail.at - 1;
-      else delete upLink.dataset.trail;
     }
     var forward = bar.querySelector("a.forward");
     if (next && !forward) {
@@ -286,7 +294,7 @@
     });
     // Says which way the trail is being walked. It is believed on arrival only if the page
     // at that step is the one that loaded, so a link that led nowhere leaves nothing behind.
-    bar.addEventListener("click", function (event) {
+    document.addEventListener("click", function (event) {
       var link = event.target.closest("a[data-trail]");
       if (!link) return;
       try {
@@ -481,6 +489,25 @@
       showSettings();
     });
     showSettings();
+  }
+
+  // ---- A listing as an overview or as files ----
+
+  var viewSwitch = document.querySelector("[data-view-switch]");
+  if (viewSwitch) {
+    var showView = function () {
+      viewSwitch.querySelectorAll("button").forEach(function (button) {
+        button.setAttribute("aria-pressed", button.dataset.value === prefs.listing);
+      });
+    };
+    viewSwitch.addEventListener("click", function (event) {
+      var button = event.target.closest("button");
+      if (!button) return;
+      window.lectern.set("listing", button.dataset.value);
+      showView();
+    });
+    showView();
+    viewSwitch.hidden = false;
   }
 
   // ---- Turning pages (e-ink) ----

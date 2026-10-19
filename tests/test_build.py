@@ -144,6 +144,8 @@ def test_index_lists_the_documents(src: Path, tmp_path: Path):
     assert 'href="docs/notes.html"' in index
     # No directory pages exist to link to, and a checkout's file dates mean nothing.
     assert 'href="study/"' not in index and "Recently changed" not in index
+    # So no folder can be listed as files either.
+    assert "data-view-switch" not in index and "files-view" not in index
 
 
 def test_math_typesetting_is_shipped_only_with_math(src: Path, tmp_path: Path):

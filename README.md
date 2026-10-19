@@ -6,8 +6,8 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 
 `lectern serve` in a project directory starts a small web server. Open its address on a tablet and you get:
 
-- a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time;
-- each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, wide tables that scroll sideways on their own;
+- a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time, or, with **Files**, just the folders and files in that directory, as in a file browser;
+- each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, tables whose text wraps to fit the column (one with too many columns to fit scrolls sideways on its own);
 - math typeset, plots shown from the pictures saved with them, and a short note where an output needs a running notebook (a widget, an interactive plot saved without a picture);
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
@@ -62,7 +62,7 @@ Open the first address on the tablet. The second is for devices that cannot reso
 
 If lectern is stopped while a page is open, following a link shows "Lectern is not running" instead of a browser error. The page carries on by itself once `lectern serve` is running again; **Try again** asks at once.
 
-`lectern serve PATH…` serves other directories, each under its own name. `--port` changes the port (default 8642), `--host` the address to listen on, `--qr` also shows the address as a QR code (needs `qrencode`), and `--verbose` prints each request.
+`lectern serve PATH…` serves other directories, each under its own name, which is the first part of its addresses. A name starting with `.` or `_` is served without it (`_drafts` as `drafts`); `--name` gives a single folder another name. `--port` changes the port (default 8642), `--host` the address to listen on, `--qr` also shows the address as a QR code (needs `qrencode`), and `--verbose` prints each request.
 
 Running `lectern serve` while lectern is already running does not start a second one. It prints the address of the folder you are in if that is being served, and says how to get it served if not.
 
@@ -109,7 +109,7 @@ lectern remove agent-memory-eval
 lectern serve --all
 ```
 
-`serve --all` serves every saved folder, each under its own name, from one address. A folder added or removed while it runs appears or disappears within a second; nothing needs restarting. The list is kept in `~/.config/lectern/config.toml`, which also holds the port.
+`serve --all` serves every saved folder, each under its own name (`add --name` chooses another), from one address. A folder added or removed while it runs appears or disappears within a second; nothing needs restarting. The list is kept in `~/.config/lectern/config.toml`, which also holds the port.
 
 ### Always on
 

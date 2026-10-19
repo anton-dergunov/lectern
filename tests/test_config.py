@@ -89,3 +89,25 @@ def test_commands(tmp_path: Path, capsys):
     assert main(["remove", "reading"]) == 1
     assert "no saved folder" in capsys.readouterr().err
     assert main(["add", str(tmp_path / "missing")]) == 1
+
+
+@pytest.mark.parametrize(("folder", "name"), [("_drafts", "drafts"), (".notes", "notes")])
+def test_a_leading_dot_or_underscore_is_left_out_of_the_name(tmp_path: Path, folder, name):
+    # The name is the first part of the address, where `_` starts lectern's own.
+    assert config.root_name(tmp_path / folder) == name
+    with pytest.raises(config.ConfigError, match="--name"):
+        config.root_name(tmp_path / "_.")
+
+
+def test_serve_takes_a_name_for_one_folder(tmp_path: Path):
+    from lectern.cli import _roots
+
+    first, second = tmp_path / "_drafts", tmp_path / "notes"
+    first.mkdir()
+    second.mkdir()
+    assert _roots([str(first)]) == {"drafts": first.resolve()}
+    assert _roots([str(first)], "blog-drafts") == {"blog-drafts": first.resolve()}
+    with pytest.raises(config.ConfigError, match="one folder"):
+        _roots([str(first), str(second)], "both")
+    with pytest.raises(config.ConfigError):
+        _roots([str(first)], "_home")

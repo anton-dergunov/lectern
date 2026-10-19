@@ -31,19 +31,23 @@ def _address(port: int) -> str:
 # ---- serve ----
 
 
-def _roots(paths: list[str]) -> dict[str, Path]:
-    """Each directory under its own name, which is the first segment of its URLs."""
+def _roots(paths: list[str], name: str | None = None) -> dict[str, Path]:
+    """Each directory under its own name, which is the first segment of its URLs; `name`
+    is the one asked for instead, when a single directory is served."""
+    paths = paths or ["."]
+    if name is not None and len(paths) > 1:
+        raise config.ConfigError("--name is for serving one folder")
     roots: dict[str, Path] = {}
-    for given in paths or ["."]:
+    for given in paths:
         path = Path(given).expanduser().resolve()
         if not path.is_dir():
             raise config.ConfigError(f"{given} is not a directory")
-        name = config.root_name(path)
-        if name in roots:
+        served_as = config.root_name(path) if name is None else config.check_name(name)
+        if served_as in roots:
             raise config.ConfigError(
-                f"{roots[name]} and {path} are both named {name}; serve one of them"
+                f"{roots[served_as]} and {path} are both named {served_as}; serve one of them"
             )
-        roots[name] = path
+        roots[served_as] = path
     return roots
 
 
@@ -115,9 +119,9 @@ def _serve(args: argparse.Namespace) -> int:
 
     saved = config.load()
     port = args.port or saved.port
-    if args.all and args.paths:
-        return _fail("give folders or --all, not both")
-    roots = saved.roots if args.all else _roots(args.paths)
+    if args.all and (args.paths or args.name):
+        return _fail("--all serves the saved folders under their saved names")
+    roots = saved.roots if args.all else _roots(args.paths, args.name)
 
     if ping := _running(port):
         return _already_running(ping, None if args.all else roots, port)
@@ -295,6 +299,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("paths", nargs="*", metavar="PATH", help="default: the current directory")
     serve.add_argument("--all", action="store_true", help="serve the saved folders instead")
+    serve.add_argument(
+        "--name", help="the name in its address, for one folder; default: the folder's name"
+    )
     serve.add_argument("--port", type=int, help=f"default: {config.DEFAULT_PORT}, or as saved")
     serve.add_argument("--host", default="0.0.0.0", help="address to listen on")
     serve.add_argument("--qr", action="store_true", help="also show the address as a QR code")

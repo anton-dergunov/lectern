@@ -5,7 +5,8 @@
 Runs against the test fixtures on a local port, in Chromium and WebKit. Checks the top
 bar hiding, the reading position surviving a reload and a text-size change, settings,
 the contents list, folding sections, long output, the e-ink theme's page turning, marking
-text, going back and forward between documents, finding words and coming back to the last
+text, going back and forward between documents and out of Not Found, a listing as files,
+tables fitting the column, finding words and coming back to the last
 page in a Home Screen app, and what happens when the server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
@@ -868,8 +869,21 @@ def run(engine_name: str, playwright) -> bool:
         shelf.mkdir()
         prose = "Sentence after sentence of prose to read. " * 30
         first_text = f"# First\n\n{prose}\n\n" * 4 + f"See [the other](second.md).\n\n{prose}\n"
+        first_text += "\nAnd [a lost one](missing.md).\n"
         Path(shelf, "first.md").write_text(first_text)
         Path(shelf, "second.md").write_text(f"# Second\n\n{prose}\n")
+        Path(shelf, "more").mkdir()
+        Path(shelf, "more", "third.md").write_text(f"# Third\n\n{prose}\n")
+        # Like the README that scrolled sideways: four columns of short phrases, then twelve.
+        phrase = "A background rewriter of one text file"
+        few = (
+            "| a | b | c | d |\n|---|---|---|---|\n"
+            + f"| {phrase} | Mem0 | mem0 | {phrase} |\n" * 3
+        )
+        many = (
+            "|" + " h |" * 12 + "\n|" + "---|" * 12 + "\n" + ("|" + f" {phrase} |" * 12 + "\n") * 2
+        )
+        Path(shelf, "tables.md").write_text(f"# Tables\n\n{few}\n\n{many}\n")
         with LocalServer(shelf) as library:
             walker = context.new_page()
             walker.on("pageerror", lambda error: errors.append(str(error)))
@@ -913,6 +927,49 @@ def run(engine_name: str, playwright) -> bool:
                     walker.locator("a.forward").count() == 0,
                 )
             )
+
+            # ---- A listing as files ----
+            overview, files_view = walker.locator(".overview"), walker.locator(".files-view")
+            shown = overview.is_visible() and not files_view.is_visible()
+            walker.get_by_role("button", name="Files", exact=True).click()
+            shown = shown and files_view.is_visible() and not overview.is_visible()
+            listed = files_view.locator(".row-title").all_inner_texts()
+            results.append(
+                check("a listing switches to its files", shown and listed[0] == "more/", listed)
+            )
+            walker.reload()
+            kept = files_view.is_visible() and not overview.is_visible()
+            pressed = walker.get_by_role("button", name="Files", exact=True)
+            kept = kept and pressed.get_attribute("aria-pressed") == "true"
+            results.append(check("and stays so", kept))
+            walker.get_by_role("button", name="Overview", exact=True).click()
+            results.append(check("and back", overview.is_visible() and not files_view.is_visible()))
+
+            # ---- Not Found ----
+            walker.goto(library.url("first.md"))
+            walker.get_by_role("link", name="a lost one").click()
+            walker.wait_for_url(library.url("missing.md"))
+            label = chevron.get_attribute("aria-label")
+            start = walker.get_by_role("link", name="Open shelf").get_attribute("href")
+            results.append(
+                check(
+                    "not found has the way back and to the start",
+                    label == "Back to First" and start == "/_home",
+                    (label, start),
+                )
+            )
+            walker.get_by_role("link", name="Go back").click()
+            walker.wait_for_url(library.url("first.md"))
+            results.append(check("and goes back", True))
+
+            # ---- Tables ----
+            walker.goto(library.url("tables.md"))
+            fits = walker.evaluate(
+                "[...document.querySelectorAll('.table-wrap')]"
+                ".map(w => w.scrollWidth <= w.clientWidth)"
+            )
+            results.append(check("a table of a few columns wraps to fit", fits[0], fits))
+            results.append(check("one of many columns scrolls", not fits[1], fits))
             walker.close()
 
     # ---- A Home Screen app: finding words, and opening where it was closed ----

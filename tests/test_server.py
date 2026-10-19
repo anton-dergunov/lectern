@@ -467,3 +467,34 @@ def test_service_worker_and_its_not_running_page(server):
 def test_own_error_pages_are_marked_as_lecterns(server):
     for path in ("/proj/", "/proj/missing.md", "/_ping"):
         assert request(server, path)[0].getheader("X-Lectern"), path
+
+
+@pytest.mark.parametrize(
+    ("path", "back"),
+    [
+        ("/proj/notebooks/missing.ipynb", "/proj/notebooks/"),
+        ("/proj/notebooks/gone/deeper/x.md", "/proj/notebooks/"),
+        ("/proj/gone/", "/proj/"),
+        ("/elsewhere/x.md", "/_home"),
+    ],
+)
+def test_not_found_has_a_way_back_and_a_way_to_the_start(server, path: str, back: str):
+    # A Home Screen app has no browser buttons: the page itself must lead out.
+    response, body = request(server, path)
+
+    assert response.status == 404
+    assert f'<a class="bar-button back" href="{back}"' in body
+    assert f'<a class="action" href="{back}" data-back>Go back</a>' in body
+    assert '<a class="action" href="/_home">Open proj</a>' in body
+
+
+def test_listing_offers_its_files_too(server):
+    _, body = request(server, "/proj/")
+
+    assert "data-view-switch hidden" in body
+    files = body[body.index('<div class="files-view">') : body.index('<div class="overview">')]
+    # The folders that hold something to read, then the documents in this one.
+    assert 'href="docs/"' in files and "1 document<" in files
+    assert 'href="notebooks/"' in files
+    assert 'href="escape.md"' in files
+    assert ".venv" not in files and "node_modules" not in files

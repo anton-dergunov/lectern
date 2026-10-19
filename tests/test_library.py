@@ -75,3 +75,17 @@ def test_recent_strip_appears_in_a_large_folder(tmp_path: Path):
         (tmp_path / f"doc{i:02}.md").write_text(f"# Doc {i}\n")
 
     assert len(library.listing(tmp_path).recent) == library.RECENT
+
+
+def test_the_folder_as_files(root: Path):
+    (root / "notebooks" / "drafts").mkdir()
+    (root / "notebooks" / "drafts" / "rough.md").write_text("# Rough\n")
+    (root / "empty").mkdir()
+
+    found = library.listing(root)
+    # Folders with something to read in them, counting what is further down too.
+    assert [(f.name, f.href, f.documents) for f in found.folders] == [
+        ("docs", "docs/", 1),
+        ("notebooks", "notebooks/", 2),
+    ]
+    assert [e.name for e in found.here] == ["escape.md"]

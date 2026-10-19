@@ -6,8 +6,9 @@ from bs4 import BeautifulSoup, Tag
 from markupsafe import Markup, escape
 from nbconvert.filters import ansi2html
 
-# A table with any cell longer than this is read like prose, so its cells wrap.
-PROSE_CELL = 60
+# A cell with more text than this is kept from narrowing below a few words when its table
+# is squeezed to fit; a table whose such columns cannot all fit scrolls sideways instead.
+WIDE_CELL = 24
 
 _NUMBER = re.compile(r"[-+−]?[\d,]*\.?\d+(?:[eE][-+]?\d+)?%?")
 _SPAN = re.compile(r"<span[^>]*>|</span>")
@@ -17,12 +18,12 @@ def _wrap_table(soup: BeautifulSoup, table: Tag) -> None:
     table.attrs.pop("border", None)
     for row in table.find_all("tr"):
         row.attrs.pop("style", None)
-    cells = table.find_all(["td", "th"])
-    prose = any(len(cell.get_text()) > PROSE_CELL for cell in cells)
-    table["class"] = [*table.get("class", []), "prose-table" if prose else "data-table"]
-    for cell in cells:
-        if cell.name == "td" and _NUMBER.fullmatch(cell.get_text().strip()):
+    for cell in table.find_all(["td", "th"]):
+        text = cell.get_text().strip()
+        if cell.name == "td" and _NUMBER.fullmatch(text):
             cell["class"] = [*cell.get("class", []), "num"]
+        elif len(text) > WIDE_CELL:
+            cell["class"] = [*cell.get("class", []), "wide"]
     table.wrap(soup.new_tag("div", attrs={"class": "table-wrap"}))
 
 
@@ -49,7 +50,7 @@ def placeholder(what: str) -> str:
 
 
 def clean_table_html(html: str) -> Markup:
-    """An HTML output without its own styling or scripts, tables wrapped and classified.
+    """An HTML output without its own styling or scripts, tables wrapped and their cells marked.
 
     pandas ships a `<style scoped>` block, `border="1"` and a right-aligned header row with
     every DataFrame; all three fight the theme. Scripts would be blocked by the page's CSP
