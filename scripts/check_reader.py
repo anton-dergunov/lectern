@@ -985,7 +985,10 @@ def run(engine_name: str, playwright) -> bool:
         Path(shelf, "first.md").write_text(first_text)
         Path(shelf, "second.md").write_text(f"# Second\n\n{prose}\n")
         Path(shelf, "more", "third.md").write_text(f"# Third\n\n{prose}\n")
-        home_screen = browser.new_context(viewport={"width": 820, "height": 1180})
+        # No service worker, which would keep `route` from seeing what the page asks for.
+        home_screen = browser.new_context(
+            viewport={"width": 820, "height": 1180}, service_workers="block"
+        )
         # What Safari says of a page opened from its icon.
         home_screen.add_init_script(
             """Object.defineProperty(navigator, 'standalone', {get: () => true, configurable: true});
@@ -993,10 +996,23 @@ def run(engine_name: str, playwright) -> bool:
                  localStorage.setItem('lectern:prefs', '{"size": 19, "width": "m"}')"""
         )
 
-        def launch(library: LocalServer, lands_on: str) -> Page:
-            """The icon tapped again: a new page, with nothing kept from the one before."""
+        def launch(library: LocalServer, lands_on: str, drop: str = "", method: str = "") -> Page:
+            """The icon tapped again: a new page, with nothing kept from the one before.
+            The first request to `drop` (by `method`, if given) gets no answer, as when the
+            device is still finding the network."""
             opened = home_screen.new_page()
             opened.on("pageerror", lambda error: errors.append(str(error)))
+            if drop:
+                dropped = []
+
+                def once(route):
+                    if not dropped and (not method or route.request.method == method):
+                        dropped.append(route.request.url)
+                        route.abort()
+                    else:
+                        route.continue_()
+
+                opened.route(drop, once)
             opened.goto(library.origin + "/")
             try:
                 opened.wait_for_url(lands_on, timeout=5000)
@@ -1083,8 +1099,46 @@ def run(engine_name: str, playwright) -> bool:
             results.append(
                 check("a listing is a place to open at too", again.url == library.url("more/"))
             )
+            again.goto(library.url("second.md"))
+            again.wait_for_load_state("load")
+            again.close()
+            again = launch(library, library.url("second.md"), drop="**/_ping")
+            results.append(
+                check(
+                    "a server slow to answer still opens where it was",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.wait_for_load_state("load")
+            again.close()
+            again = launch(library, library.url("second.md"), drop="**/second.md", method="HEAD")
+            results.append(
+                check(
+                    "so does a page that did not answer the first time",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            # Put away before it finished loading, as iOS does to make room.
+            again.evaluate(
+                "localStorage.setItem('lectern:resuming', '1');"
+                "window.dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+            again.close()
+            again = launch(library, library.url("second.md"))
+            results.append(
+                check(
+                    "a page put away while loading is opened again",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
             again.goto(library.url("more/third.md"))
             again.wait_for_load_state("load")
+            # A page that hangs runs nothing, not even on being put away; so the mark is set
+            # from an address of the same server that has no reader on it.
+            again.goto(library.origin + "/manifest.webmanifest")
             again.evaluate("localStorage.setItem('lectern:resuming', '1')")
             again.close()
             again = launch(library, library.url(""))

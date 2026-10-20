@@ -47,7 +47,8 @@
   }
 
   // The "not running" screen: shown over the page, checked again every two seconds, and
-  // gone by itself, on to `target`, once the server answers.
+  // gone by itself, on to `target`, once the server answers. `target` is an address, or
+  // what to do instead of loading one.
   var waitingFor = null;
 
   function waitForServer(target, pause) {
@@ -78,7 +79,8 @@
       button.disabled = true;
       ping().then(
         function () {
-          location.replace(waitingFor);
+          if (typeof waitingFor === "function") waitingFor();
+          else location.replace(waitingFor);
         },
         function () {
           button.disabled = false;
@@ -105,9 +107,9 @@
   var LAST = "lectern:last";
   var RESUMING = "lectern:resuming";
 
-  // The address to go back to, or nothing. A page that never finished loading the last
-  // time it was gone back to is not tried again: quitting is the only way out of a page
-  // that hangs, and it must not lead straight back in.
+  // The address to go back to, or nothing; it fails if the server could not be asked. A
+  // page that was gone back to and never got as far as running is not tried again:
+  // quitting is the only way out of a page that hangs, and it must not lead straight back in.
   function lastPlace() {
     var trail = null;
     try {
@@ -125,8 +127,10 @@
     var url = last && typeof last.url === "string" ? last.url : "";
     // A path on this server and nothing else.
     if (url.charAt(0) !== "/" || url.charAt(1) === "/") return Promise.resolve(null);
-    return fetch(url, { method: "HEAD", cache: "no-store" })
-      .then(function (response) {
+    // No answer at all is not news that the page is gone: a device back from a long sleep
+    // can take a moment to find the network again.
+    return fetch(url, { method: "HEAD", cache: "no-store" }).then(function (response) {
+      try {
         if (!response.ok) {
           // Renamed, deleted, or in a folder that is no longer served.
           localStorage.removeItem(LAST);
@@ -134,11 +138,11 @@
         }
         sessionStorage.setItem(TRAIL, JSON.stringify(trail));
         localStorage.setItem(RESUMING, "1");
-        return url;
-      })
-      .catch(function () {
+      } catch (e) {
         return null;
-      });
+      }
+      return url;
+    });
   }
 
   // The start page. It is cached for a long time so that it still opens when the server
@@ -152,20 +156,26 @@
       waitForServer(location.href, 1500);
       return;
     }
+    // Waiting for the server ends where the app was too, not at the listing.
+    var resume = function () {
+      lastPlace().then(
+        function (last) {
+          location.replace(last || home);
+        },
+        function () {
+          waitForServer(resume);
+        }
+      );
+    };
     ping().then(
       function (info) {
         // A newer lectern than the one that cached this page: refresh the cached copy.
         var refresh =
           info.assets === shell.dataset.assets ? Promise.resolve() : fetch("/", { cache: "reload" });
-        refresh
-          .catch(function () {})
-          .then(lastPlace)
-          .then(function (last) {
-            location.replace(last || home);
-          });
+        refresh.catch(function () {}).then(resume);
       },
       function () {
-        waitForServer(home);
+        waitForServer(resume);
       }
     );
     return;
@@ -286,11 +296,18 @@
     window.addEventListener("pageshow", function (event) {
       if (event.persisted) syncTrail("back_forward");
     });
-    // This page has loaded, so it is safe to come back to.
-    window.addEventListener("load", function () {
+    // This page has loaded, or was left while it could still answer, so it is safe to come
+    // back to. A page that hangs does neither. Waiting for `load` alone would count one put
+    // away before its last image arrived as hanging.
+    var settled = function () {
       try {
         localStorage.removeItem(RESUMING);
       } catch (e) {}
+    };
+    window.addEventListener("load", settled);
+    window.addEventListener("pagehide", settled);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") settled();
     });
     // Says which way the trail is being walked. It is believed on arrival only if the page
     // at that step is the one that loaded, so a link that led nowhere leaves nothing behind.
