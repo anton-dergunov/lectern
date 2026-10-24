@@ -286,6 +286,22 @@ def run(engine_name: str, playwright) -> bool:
         position = name_token.evaluate("e => getComputedStyle(e).position")
         results.append(check("code tokens are laid out normally", position == "static", position))
 
+        # Cell tags: setup hide-input, main show-input, plain by length, both tags shut.
+        page.goto(server.url("cell-tags.ipynb"))
+        settle(page)
+        marked = "() => [...document.querySelectorAll('details.src')].map(d => d.open)"
+        starts = page.evaluate(marked)
+        expected = [False, True, False, False]
+        results.append(check("cells start as tagged", starts == expected, starts))
+        page.get_by_role("button", name="Reading settings").click()
+        page.get_by_role("button", name="Hidden").click()
+        hidden = page.evaluate(marked)
+        page.get_by_role("button", name="Shown").click()
+        shown = page.evaluate(marked)
+        page.locator("#settings").get_by_role("button", name="Done").click()
+        ok = not any(hidden) and shown == expected
+        results.append(check("code shown again goes back to the tags", ok, (hidden, shown)))
+
         # ---- Math ----
         fetched: list[str] = []
         page.on("request", lambda request: fetched.append(request.url))

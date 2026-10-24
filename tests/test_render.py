@@ -25,11 +25,12 @@ def test_notebook_structure(root: Path):
 
     assert fragment.count('<section class="cell md"') == 1
     assert fragment.count('<section class="cell code"') == 2
-    assert '<details class="src" data-lines="2" open' in fragment
+    assert '<details class="src" data-lines="2" data-start="open" open' in fragment
     assert '<span class="cell-n" title="This cell in the notebook">[1]</span>' in fragment
     # A cell that was never run is numbered among the code cells instead.
     assert ">#2</span>" in fragment
     # The 40-line cell starts collapsed and says how long it is.
+    assert '<details class="src" data-lines="40" data-start="shut">' in fragment
     assert "Code · 40 lines" in fragment
     assert '<pre class="stream wrap"><span class="l">hello\n</span>' in fragment
     assert "world &lt;b&gt;" in fragment
@@ -37,6 +38,27 @@ def test_notebook_structure(root: Path):
     assert '<pre class="error">' in fragment and "ansi-red-fg" in fragment
     assert '<table class="dataframe">' in fragment
     assert '<td class="num">0.75</td>' in fragment
+
+
+def test_cell_tags_choose_how_code_starts(tmp_path: Path):
+    long = "\n".join(f"step_{i} = {i}" for i in range(40))
+    cells = [
+        v4.new_code_cell("import os", metadata={"tags": ["hide-input"]}),
+        v4.new_code_cell(long, metadata={"tags": ["show-input"]}),
+        v4.new_code_cell("x = 1", metadata={"tags": ["show-input", "hide-input"]}),
+        v4.new_code_cell("y = 2", metadata={"tags": ["other"]}),
+    ]
+    fragment = render_document(write_notebook(tmp_path / "tags.ipynb", cells)).fragment
+
+    starts = [
+        line.split('data-start="')[1].split('"')[0]
+        for line in fragment.splitlines()
+        if line.startswith('<details class="src"')
+    ]
+    # hide-input wins over show-input, and a tag lectern does not know changes nothing.
+    assert starts == ["shut", "open", "shut", "open"]
+    assert '<details class="src" data-lines="40" data-start="open" open' in fragment
+    assert '<details class="src" data-lines="1" data-start="shut">' in fragment
 
 
 def test_title_toc_and_math(root: Path):

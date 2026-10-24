@@ -761,11 +761,10 @@
 
   // ---- Code cells ----
 
-  var OPEN_UP_TO = 30;
-
+  // How each cell starts is decided with the page: by its tags, or else by its length.
   function applyHideCode() {
     document.querySelectorAll("details.src").forEach(function (cell) {
-      cell.open = !prefs.hideCode && Number(cell.dataset.lines) <= OPEN_UP_TO;
+      cell.open = !prefs.hideCode && cell.dataset.start === "open";
     });
   }
 

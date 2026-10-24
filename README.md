@@ -14,7 +14,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 - sections that fold: a marker beside each heading hides everything under it, and the contents list can collapse the whole notebook to its outline and open the part you pick;
 - a way back: after following a link to another document, the arrow in the top bar returns to the one you came from, at the place you left it, and a second arrow goes forward again;
 - highlights and notes: switch on the pen in the top bar and whatever you select is highlighted; tap a highlight to write a note on it. They are kept in a file beside the notebook, so they are there on every device you read from, and `lectern notes` prints them as markdown;
-- long code cells folded away until you ask for them, long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
+- long code cells folded away until you ask for them, or the cells you choose with a tag (below), long printed output cut to its first lines, and a small cell number on each code cell to find it again in Jupyter;
 - reading settings saved per device, starting from sizes that suit a tablet, a phone, a desktop or an e-ink reader: text size, column width from narrow to the full window, Solarized or black-and-white colours in light or dark (or following the system), and code cells hidden altogether;
 - an e-ink theme, chosen by itself on e-ink readers: black on white, nothing animated, and pages turned with buttons, a tap on either edge of the screen, or the page keys instead of scrolling. A page starts and ends on a whole line, and begins with the last two lines of the page before. For an e-ink screen with colour it can colour code and printed output; pictures are in colour either way. A tap on the page number hides the top bar, and another brings it back;
 - a top bar that gets out of the way while you read down and comes back when you scroll up;
@@ -67,6 +67,16 @@ If lectern is stopped while a page is open, following a link shows "Lectern is n
 Running `lectern serve` while lectern is already running does not start a second one. It prints the address of the folder you are in if that is being served, and says how to get it served if not.
 
 With **Reload automatically** switched on in a page's settings, the page reloads by itself, in the same place, when the notebook is saved again. It is off by default, and not offered in the e-ink theme.
+
+### Which code starts folded
+
+A code cell longer than 30 lines starts folded. A cell tag decides for one cell instead: `hide-input` folds it whatever its length (setup, imports, plumbing), and `show-input` keeps it open however long it is. The tag is the same as in Jupyter Book, and if a cell has both, `hide-input` wins. **Hidden** in the reading settings still folds every cell, and **Shown** puts each back as its tag says.
+
+Tags are kept in the notebook, so editors and converters carry them along:
+
+- VS Code: **Add Cell Tag** from the command palette (the Jupyter extension);
+- JupyterLab: the property inspector in the right sidebar, under **Common Tools**;
+- a jupytext script: `# %% tags=["hide-input"]` on the cell's marker line (` ```python tags=["hide-input"] ` in markdown).
 
 ### Highlights and notes
 

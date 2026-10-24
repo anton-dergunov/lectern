@@ -37,7 +37,10 @@
 {% block input_group %}
 {%- if cell.source.strip() %}
 {%- set n = cell.source.strip().count('\n') + 1 %}
-<details class="src" data-lines="{{ n }}"{% if n <= 30 %} open{% endif %}>
+{#- The author's tags first, as Jupyter Book reads `hide-input`; then the length. -#}
+{%- set tags = cell.metadata.get('tags', []) %}
+{%- set shown = 'hide-input' not in tags and ('show-input' in tags or n <= 30) %}
+<details class="src" data-lines="{{ n }}" data-start="{{ 'open' if shown else 'shut' }}"{% if shown %} open{% endif %}>
 <summary><span class="label">Code · {{ n }} line{{ '' if n == 1 else 's' }}</span></summary>
 {{ cell.source | highlight_code(metadata=cell.metadata) }}
 </details>
