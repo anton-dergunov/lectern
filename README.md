@@ -7,7 +7,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 `lectern serve` in a project directory starts a small web server. Open its address on a tablet and you get:
 
 - a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time, or, with **Files**, just the folders and files in that directory, as in a file browser;
-- each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, tables whose text wraps to fit the column (one with too many columns to fit scrolls sideways on its own);
+- each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, tables whose text wraps to fit the column (one with too many columns to fit takes what it lacks from the margins, and scrolls sideways only if it is wider than the screen);
 - math typeset, plots shown from the pictures saved with them, and a short note where an output needs a running notebook (a widget, an interactive plot saved without a picture);
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;

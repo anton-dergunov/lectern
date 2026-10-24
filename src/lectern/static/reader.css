@@ -457,6 +457,9 @@ td.num { text-align: right; white-space: nowrap; }
    when those cells cannot all fit, the table scrolls sideways in its wrapper. */
 th.wide, td.wide { min-width: 8em; }
 .cell.md table { font-size: 0.8rem; }
+/* A table that cannot fit even so is given room in the margins by reader.js, which keeps
+   it on the screen; the cell around it must not cut it at the column's edge. */
+.cell.md:has(.table-wrap.spread), .out:has(.table-wrap.spread) { overflow-x: visible; }
 
 /* ---- Listings and error pages ---- */
 

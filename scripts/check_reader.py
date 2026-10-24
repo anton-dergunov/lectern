@@ -874,16 +874,21 @@ def run(engine_name: str, playwright) -> bool:
         Path(shelf, "second.md").write_text(f"# Second\n\n{prose}\n")
         Path(shelf, "more").mkdir()
         Path(shelf, "more", "third.md").write_text(f"# Third\n\n{prose}\n")
-        # Like the README that scrolled sideways: four columns of short phrases, then twelve.
+        # Like the README that scrolled sideways: four columns of short phrases, then six,
+        # a little too many for the column, then twelve, too many for the screen.
         phrase = "A background rewriter of one text file"
         few = (
             "| a | b | c | d |\n|---|---|---|---|\n"
             + f"| {phrase} | Mem0 | mem0 | {phrase} |\n" * 3
         )
-        many = (
-            "|" + " h |" * 12 + "\n|" + "---|" * 12 + "\n" + ("|" + f" {phrase} |" * 12 + "\n") * 2
-        )
-        Path(shelf, "tables.md").write_text(f"# Tables\n\n{few}\n\n{many}\n")
+
+        def columns(n: int) -> str:
+            return (
+                "|" + " h |" * n + "\n|" + "---|" * n + "\n" + ("|" + f" {phrase} |" * n + "\n") * 2
+            )
+
+        tables = f"# Tables\n\n{few}\n\n{columns(6)}\n\n{columns(12)}\n"
+        Path(shelf, "tables.md").write_text(tables)
         with LocalServer(shelf) as library:
             walker = context.new_page()
             walker.on("pageerror", lambda error: errors.append(str(error)))
@@ -964,12 +969,40 @@ def run(engine_name: str, playwright) -> bool:
 
             # ---- Tables ----
             walker.goto(library.url("tables.md"))
-            fits = walker.evaluate(
-                "[...document.querySelectorAll('.table-wrap')]"
-                ".map(w => w.scrollWidth <= w.clientWidth)"
+            settle(walker)
+            wraps = walker.evaluate(
+                """[...document.querySelectorAll('.table-wrap')].map(w => {
+                     const box = w.getBoundingClientRect();
+                     return {spread: w.classList.contains('spread'), fits: w.scrollWidth <= w.clientWidth,
+                             left: box.left, right: innerWidth - box.right};
+                   })"""
             )
-            results.append(check("a table of a few columns wraps to fit", fits[0], fits))
-            results.append(check("one of many columns scrolls", not fits[1], fits))
+            few_wrap, some, many_wrap = wraps
+            results.append(
+                check(
+                    "a table of a few columns wraps to fit, in the column",
+                    few_wrap["fits"] and not few_wrap["spread"],
+                    few_wrap,
+                )
+            )
+            spread = some["spread"] and some["fits"] and some["left"] > 16 and some["right"] > 16
+            results.append(
+                check("one a little too wide takes only what it needs of the margins", spread, some)
+            )
+            edges = (
+                many_wrap["spread"]
+                and abs(many_wrap["left"] - 16) < 1
+                and abs(many_wrap["right"] - 16) < 1
+            )
+            results.append(
+                check(
+                    "one too wide for the screen spans it and scrolls",
+                    edges and not many_wrap["fits"],
+                    many_wrap,
+                )
+            )
+            wider = walker.evaluate("document.documentElement.scrollWidth > innerWidth")
+            results.append(check("and the page itself does not scroll sideways", not wider))
             walker.close()
 
     # ---- A Home Screen app: finding words, and opening where it was closed ----

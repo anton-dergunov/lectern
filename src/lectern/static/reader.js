@@ -481,6 +481,7 @@
   function keepingPlace(change) {
     var place = doc && currentPlace();
     change();
+    spreadTables();
     if (place) goToPlace(place);
   }
 
@@ -840,6 +841,8 @@
         link.toggleAttribute("data-folded", folded[decodeURIComponent(link.hash.slice(1))] === true);
       });
     }
+    // A table that was folded away had no width to measure.
+    spreadTables();
     if (!FOLDS) return;
     try {
       var ids = Object.keys(folded);
@@ -1006,6 +1009,46 @@
     }
     pre.after(tools);
   });
+
+  // ---- Tables wider than the column ----
+  // A table whose columns cannot fit the column even with their text wrapped takes what it
+  // lacks from the margins, centred on the column, and no more than the screen has; only
+  // what is wider than the screen still scrolls. A table that fits is left alone: one that
+  // leaves the column is harder to read, so it is the last resort before scrolling.
+  // Without this script such a table scrolls in its wrapper.
+
+  function spreadTables() {
+    if (!doc) return;
+    var wraps = doc.querySelectorAll(".table-wrap");
+    wraps.forEach(function (wrap) {
+      wrap.classList.remove("spread");
+      wrap.style.width = "";
+      wrap.style.marginLeft = "";
+    });
+    var gutter = parseFloat(getComputedStyle(doc).paddingLeft);
+    var screen = document.documentElement.clientWidth;
+    var spreads = [];
+    wraps.forEach(function (wrap) {
+      var table = wrap.querySelector("table");
+      var box = wrap.getBoundingClientRect();
+      // Folded away, or it fits. A table that cannot fit is at its narrowest already.
+      if (!table || !box.width || table.offsetWidth <= box.width + 1) return;
+      var width = Math.min(table.offsetWidth, screen - 2 * gutter);
+      var left = box.left + (box.width - width) / 2;
+      left = Math.max(gutter, Math.min(left, screen - gutter - width));
+      spreads.push({ wrap: wrap, width: width, shift: left - box.left });
+    });
+    // Measured first and moved after, so that one table's move does not upset the next.
+    spreads.forEach(function (spread) {
+      spread.wrap.classList.add("spread");
+      spread.wrap.style.width = spread.width + "px";
+      spread.wrap.style.marginLeft = spread.shift + "px";
+    });
+  }
+
+  spreadTables();
+  window.addEventListener("resize", spreadTables);
+  if (document.fonts) document.fonts.ready.then(spreadTables);
 
   // ---- Notes and highlights ----
   // A mark is a stretch of the page's text, kept as the words themselves, a little of what
