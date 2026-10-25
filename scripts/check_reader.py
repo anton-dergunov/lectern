@@ -817,8 +817,20 @@ def run(engine_name: str, playwright) -> bool:
                 again = marker.evaluate(MARKED)
                 same = again["plain"] == 1 and again["cell"] == "c-cell-5"
                 same = same and again["offset"] == made["offset"]
-                same = same and pen.get_attribute("aria-pressed") == "false"
                 results.append(check("the mark is there again, on the same words", same, again))
+                stays = pen.get_attribute("aria-pressed") == "true"
+                stays = stays and marker.evaluate(
+                    "document.documentElement.hasAttribute('data-marking')"
+                )
+                results.append(check("the pen is still on after a reload", stays))
+                pen.click()
+                marker.reload()
+                settle(marker)
+                off = pen.get_attribute("aria-pressed") == "false"
+                off = off and not marker.evaluate(
+                    "document.documentElement.hasAttribute('data-marking')"
+                )
+                results.append(check("and stays off once turned off", off))
 
                 marker.mouse.click(again["x"], again["y"])
                 pop.get_by_role("button", name="Add note").click()

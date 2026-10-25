@@ -13,6 +13,8 @@
     follow: false,
     // A folder's listing: "overview" of what there is to read, or its "files".
     listing: "overview",
+    // Whether the pen (marking what is selected) is on.
+    marking: false,
     // The two below only apply in the e-ink theme.
     ink: "mono",
     noBar: false,

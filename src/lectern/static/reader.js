@@ -1877,7 +1877,8 @@
     bar.querySelector("[data-open='settings']").before(pen);
     pen.addEventListener("click", function () {
       pen.setAttribute("aria-pressed", root.toggleAttribute("data-marking"));
-      // Not saved, and the server may be back: a tap here is also a way of trying again.
+      window.lectern.set("marking", root.hasAttribute("data-marking"));
+      // The server may be back: a tap here is also a way of trying again.
       send();
     });
 
@@ -2019,6 +2020,11 @@
         rev = kept.rev;
         marks = kept.notes;
         pen.hidden = false;
+        // The pen stays as it was left, on the pages that can be marked.
+        if (window.lectern.prefs.marking) {
+          root.setAttribute("data-marking", "");
+          pen.setAttribute("aria-pressed", "true");
+        }
         try {
           (JSON.parse(localStorage.getItem(TRIAL)) || []).forEach(function (mark) {
             var known = marks.some(function (other) {
