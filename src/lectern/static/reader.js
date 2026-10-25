@@ -107,41 +107,122 @@
   var LAST = "lectern:last";
   var RESUMING = "lectern:resuming";
 
+  // Chrome writes localStorage to the disk a minute or more after the page does, and an
+  // Android app that is closed or pushed out of memory loses what had not been written. So
+  // these two are kept in IndexedDB, which has them on the disk once a write completes, and
+  // in localStorage only where IndexedDB cannot be had. Neither function ever fails.
+  var KEPT = "kept";
+  var keptDatabase = null;
+
+  function openKept() {
+    if (!keptDatabase) {
+      keptDatabase = new Promise(function (resolve, reject) {
+        var request = indexedDB.open("lectern", 1);
+        request.onupgradeneeded = function () {
+          request.result.createObjectStore(KEPT);
+        };
+        request.onsuccess = function () {
+          resolve(request.result);
+        };
+        request.onerror = request.onblocked = function () {
+          reject(request.error);
+        };
+      });
+    }
+    return keptDatabase;
+  }
+
+  // What is kept under `name`, or null.
+  function kept(name) {
+    return openKept()
+      .then(function (database) {
+        return new Promise(function (resolve, reject) {
+          var request = database.transaction(KEPT).objectStore(KEPT).get(name);
+          request.onsuccess = function () {
+            resolve(request.result === undefined ? null : request.result);
+          };
+          request.onerror = function () {
+            reject(request.error);
+          };
+        });
+      })
+      .catch(function () {
+        try {
+          return JSON.parse(localStorage.getItem(name));
+        } catch (e) {
+          return null;
+        }
+      });
+  }
+
+  // Settles once `value` is on the disk; null removes what was kept.
+  function keep(name, value) {
+    return openKept()
+      .then(function (database) {
+        return new Promise(function (resolve, reject) {
+          var change = database.transaction(KEPT, "readwrite");
+          if (value == null) change.objectStore(KEPT).delete(name);
+          else change.objectStore(KEPT).put(value, name);
+          change.oncomplete = function () {
+            resolve();
+          };
+          change.onerror = change.onabort = function () {
+            reject(change.error);
+          };
+        });
+      })
+      .catch(function () {
+        try {
+          if (value == null) localStorage.removeItem(name);
+          else localStorage.setItem(name, JSON.stringify(value));
+        } catch (e) {}
+      });
+  }
+
   // The address to go back to, or nothing; it fails if the server could not be asked. A
   // page that was gone back to and never got as far as running is not tried again:
   // quitting is the only way out of a page that hangs, and it must not lead straight back in.
   function lastPlace() {
-    var trail = null;
-    try {
-      if (!standalone) return Promise.resolve(null);
-      trail = JSON.parse(localStorage.getItem(LAST));
-      if (localStorage.getItem(RESUMING)) {
-        localStorage.removeItem(RESUMING);
-        localStorage.removeItem(LAST);
-        return Promise.resolve(null);
+    if (!standalone) return Promise.resolve(null);
+    return Promise.all([kept(LAST), kept(RESUMING)]).then(function (found) {
+      var trail = found[0];
+      if (!trail) {
+        // Where lectern 0.2.3 and before kept it.
+        try {
+          trail = JSON.parse(localStorage.getItem(LAST));
+          localStorage.removeItem(LAST);
+          localStorage.removeItem(RESUMING);
+        } catch (e) {}
       }
-    } catch (e) {
-      return Promise.resolve(null);
-    }
-    var last = trail && Array.isArray(trail.list) && trail.list[trail.at];
-    var url = last && typeof last.url === "string" ? last.url : "";
-    // A path on this server and nothing else.
-    if (url.charAt(0) !== "/" || url.charAt(1) === "/") return Promise.resolve(null);
-    // No answer at all is not news that the page is gone: a device back from a long sleep
-    // can take a moment to find the network again.
-    return fetch(url, { method: "HEAD", cache: "no-store" }).then(function (response) {
-      try {
+      var last = trail && Array.isArray(trail.list) && trail.list[trail.at];
+      var url = last && typeof last.url === "string" ? last.url : "";
+      // A path on this server and nothing else.
+      if (url.charAt(0) !== "/" || url.charAt(1) === "/") return null;
+      // The mark names the page it was set for; one left for another page means nothing.
+      if (found[1] === url) {
+        return Promise.all([keep(LAST, null), keep(RESUMING, null)]).then(function () {
+          return null;
+        });
+      }
+      // No answer at all is not news that the page is gone: a device back from a long sleep
+      // can take a moment to find the network again.
+      return fetch(url, { method: "HEAD", cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           // Renamed, deleted, or in a folder that is no longer served.
-          localStorage.removeItem(LAST);
+          return keep(LAST, null).then(function () {
+            return null;
+          });
+        }
+        try {
+          sessionStorage.setItem(TRAIL, JSON.stringify(trail));
+        } catch (e) {
           return null;
         }
-        sessionStorage.setItem(TRAIL, JSON.stringify(trail));
-        localStorage.setItem(RESUMING, "1");
-      } catch (e) {
-        return null;
-      }
-      return url;
+        // On the disk before leaving: a write still under way can be lost with the page.
+        return keep(RESUMING, url).then(function () {
+          return url;
+        });
+      });
     });
   }
 
@@ -249,11 +330,7 @@
       // Nowhere to keep it: the chevron stays the way up to the folder.
       return;
     }
-    if (served && standalone) {
-      try {
-        localStorage.setItem(LAST, JSON.stringify(trail));
-      } catch (e) {}
-    }
+    if (served && standalone) keep(LAST, trail);
 
     var previous = trail.list[trail.at - 1];
     var next = trail.list[trail.at + 1];
@@ -300,9 +377,7 @@
     // back to. A page that hangs does neither. Waiting for `load` alone would count one put
     // away before its last image arrived as hanging.
     var settled = function () {
-      try {
-        localStorage.removeItem(RESUMING);
-      } catch (e) {}
+      if (standalone) keep(RESUMING, null);
     };
     window.addEventListener("load", settled);
     window.addEventListener("pagehide", settled);
@@ -761,14 +836,48 @@
 
   // ---- Code cells ----
 
-  // How each cell starts is decided with the page: by its tags, or else by its length.
+  // How each cell starts is decided with the page: by its tags, or else by its length. What
+  // the reader opened or shut by hand, where that differs, is kept for the next time; with
+  // code hidden in the settings, everything is shut and nothing is kept.
+  var CODE = doc && doc.dataset.path ? "lectern:code:" + doc.dataset.path : null;
+  var codeOpen = {};
+
+  if (CODE) {
+    try {
+      codeOpen = JSON.parse(localStorage.getItem(CODE)) || {};
+    } catch (e) {}
+  }
+
+  function codeCell(details) {
+    var cell = details.closest(".cell.code");
+    return cell && cell.id;
+  }
+
   function applyHideCode() {
-    document.querySelectorAll("details.src").forEach(function (cell) {
-      cell.open = !prefs.hideCode && cell.dataset.start === "open";
+    document.querySelectorAll("details.src").forEach(function (details) {
+      var id = codeCell(details);
+      var open = id && id in codeOpen ? codeOpen[id] : details.dataset.start === "open";
+      details.open = !prefs.hideCode && open;
     });
   }
 
-  if (prefs.hideCode) applyHideCode();
+  if (prefs.hideCode || Object.keys(codeOpen).length) applyHideCode();
+
+  if (CODE) {
+    // A tap on the summary, and not the opening that find does to show what it found.
+    doc.addEventListener("click", function (event) {
+      var summary = event.target.closest("details.src > summary");
+      var id = summary && codeCell(summary.parentNode);
+      if (!id || prefs.hideCode) return;
+      var open = !summary.parentNode.open;
+      if (open === (summary.parentNode.dataset.start === "open")) delete codeOpen[id];
+      else codeOpen[id] = open;
+      try {
+        if (Object.keys(codeOpen).length) localStorage.setItem(CODE, JSON.stringify(codeOpen));
+        else localStorage.removeItem(CODE);
+      } catch (e) {}
+    });
+  }
 
   // ---- Sections that fold ----
   // A heading's section is everything after it up to the next heading of its level or

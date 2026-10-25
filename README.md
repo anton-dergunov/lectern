@@ -70,7 +70,7 @@ With **Reload automatically** switched on in a page's settings, the page reloads
 
 ### Which code starts folded
 
-A code cell longer than 30 lines starts folded. A cell tag decides for one cell instead: `hide-input` folds it whatever its length (setup, imports, plumbing), and `show-input` keeps it open however long it is. The tag is the same as in Jupyter Book, and if a cell has both, `hide-input` wins. **Hidden** in the reading settings still folds every cell, and **Shown** puts each back as its tag says.
+A code cell longer than 30 lines starts folded. A cell tag decides for one cell instead: `hide-input` folds it whatever its length (setup, imports, plumbing), and `show-input` keeps it open however long it is. The tag is the same as in Jupyter Book, and if a cell has both, `hide-input` wins. A cell you open or fold yourself stays that way on that device the next time you read the notebook. **Hidden** in the reading settings still folds every cell, and **Shown** puts each back as its tag or your own choice says.
 
 Tags are kept in the notebook, so editors and converters carry them along:
 
@@ -129,7 +129,7 @@ lectern agent status
 lectern agent uninstall
 ```
 
-`agent install` starts `lectern serve --all` now and at every login, so the saved folders can be read whenever the Mac is awake. Its output goes to `~/Library/Logs/lectern.log`. Remember that this puts the saved folders on every network the Mac joins; `lectern agent install --host 127.0.0.1` keeps it to the Mac itself, for use behind Tailscale (below).
+`agent install` starts `lectern serve --all` now and at every login, so the saved folders can be read whenever the Mac is awake. Its output goes to `~/Library/Logs/lectern.log`. Remember that this puts the saved folders on every network the Mac joins; `lectern agent install --host 127.0.0.1` keeps it to the Mac itself, for use behind Tailscale (below). `agent status` also says when the running lectern is older than the one installed, and how to restart it; the reading settings on a device show which version it is reading from.
 
 ### Running a cell
 

@@ -604,6 +604,7 @@ dialog.sheet {
   cursor: pointer;
 }
 .sheet-note { margin: 1.6rem 0 0; font-size: 0.68rem; color: var(--fg-muted); }
+.sheet-note.version { margin-top: 0.4rem; }
 
 .toc { display: flex; flex-direction: column; margin-top: 0.4rem; }
 .toc a {

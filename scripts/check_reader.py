@@ -106,6 +106,32 @@ MARKED = """() => {
 
 FONT_SIZE = "getComputedStyle(document.documentElement).fontSize"
 
+# What a Home Screen app keeps in IndexedDB to open where it was, as reader.js keeps it:
+# KEEP sets a name (null removes it), KEPT reads one back.
+KEPT_STORE = """(name, value, write) => new Promise((done, fail) => {
+  const open = indexedDB.open('lectern', 1);
+  open.onupgradeneeded = () => open.result.createObjectStore('kept');
+  open.onerror = () => fail(open.error);
+  open.onsuccess = () => {
+    const database = open.result;
+    const change = database.transaction('kept', write ? 'readwrite' : 'readonly');
+    const store = change.objectStore('kept');
+    let found = null;
+    if (!write) store.get(name).onsuccess = (event) => { found = event.target.result ?? null; };
+    else if (value === null) store.delete(name);
+    else store.put(value, name);
+    change.oncomplete = () => { database.close(); done(found); };
+    change.onerror = () => fail(change.error);
+  };
+})"""
+KEEP = f"([name, value]) => ({KEPT_STORE})(name, value, true)"
+KEPT = f"(name) => ({KEPT_STORE})(name, null, false)"
+# Whether the trail kept for the app ends on this page.
+AT_KEPT = f"""async () => {{
+  const trail = await ({KEPT})('lectern:last');
+  return Boolean(trail) && trail.list[trail.at].url === location.pathname + location.search;
+}}"""
+
 
 def settle(page: Page) -> None:
     page.wait_for_timeout(500)
@@ -301,6 +327,31 @@ def run(engine_name: str, playwright) -> bool:
         page.locator("#settings").get_by_role("button", name="Done").click()
         ok = not any(hidden) and shown == expected
         results.append(check("code shown again goes back to the tags", ok, (hidden, shown)))
+        page.locator("#c-setup summary").click()
+        page.locator("#c-main summary").click()
+        page.reload()
+        settle(page)
+        by_hand = [True, False, False, False]
+        kept = page.evaluate(marked)
+        results.append(check("code opened or shut by hand stays so", kept == by_hand, kept))
+        page.get_by_role("button", name="Reading settings").click()
+        version = page.locator("#settings .version").inner_text()
+        results.append(
+            check("the settings say which lectern", version.startswith("Lectern "), version)
+        )
+        page.get_by_role("button", name="Hidden").click()
+        hidden = page.evaluate(marked)
+        page.get_by_role("button", name="Shown").click()
+        shown = page.evaluate(marked)
+        page.locator("#settings").get_by_role("button", name="Done").click()
+        ok = not any(hidden) and shown == by_hand
+        results.append(check("hiding code shuts those too, until shown", ok, (hidden, shown)))
+        page.locator("#c-setup summary").click()
+        page.locator("#c-main summary").click()
+        left = page.evaluate(
+            "localStorage.getItem('lectern:code:' + document.querySelector('main.doc').dataset.path)"
+        )
+        results.append(check("as tagged again, nothing is kept", left is None, left))
 
         # ---- Math ----
         fetched: list[str] = []
@@ -1045,6 +1096,14 @@ def run(engine_name: str, playwright) -> bool:
                  localStorage.setItem('lectern:prefs', '{"size": 19, "width": "m"}')"""
         )
 
+        def put_away(opened: Page) -> None:
+            """Closed once where it is has been kept, as an app is after some reading."""
+            for _ in range(30):
+                if opened.evaluate(AT_KEPT):
+                    break
+                opened.wait_for_timeout(100)
+            opened.close()
+
         def launch(library: LocalServer, lands_on: str, drop: str = "", method: str = "") -> Page:
             """The icon tapped again: a new page, with nothing kept from the one before.
             The first request to `drop` (by `method`, if given) gets no answer, as when the
@@ -1134,7 +1193,7 @@ def run(engine_name: str, playwright) -> bool:
 
             app.get_by_role("link", name="the other").click()
             app.wait_for_url(library.url("second.md"))
-            app.close()
+            put_away(app)
             again = launch(library, library.url("second.md"))
             back = again.locator(".bar a.back").get_attribute("aria-label")
             resumed = again.url == library.url("second.md") and back == "Back to First"
@@ -1143,14 +1202,14 @@ def run(engine_name: str, playwright) -> bool:
             )
             again.wait_for_load_state("load")
             again.goto(library.url("more/"))
-            again.close()
+            put_away(again)
             again = launch(library, library.url("more/"))
             results.append(
                 check("a listing is a place to open at too", again.url == library.url("more/"))
             )
             again.goto(library.url("second.md"))
             again.wait_for_load_state("load")
-            again.close()
+            put_away(again)
             again = launch(library, library.url("second.md"), drop="**/_ping")
             results.append(
                 check(
@@ -1160,7 +1219,7 @@ def run(engine_name: str, playwright) -> bool:
                 )
             )
             again.wait_for_load_state("load")
-            again.close()
+            put_away(again)
             again = launch(library, library.url("second.md"), drop="**/second.md", method="HEAD")
             results.append(
                 check(
@@ -1170,15 +1229,41 @@ def run(engine_name: str, playwright) -> bool:
                 )
             )
             # Put away before it finished loading, as iOS does to make room.
-            again.evaluate(
-                "localStorage.setItem('lectern:resuming', '1');"
-                "window.dispatchEvent(new PageTransitionEvent('pagehide'))"
-            )
-            again.close()
+            second = library.url("second.md").removeprefix(library.origin)
+            again.evaluate(KEEP, ["lectern:resuming", second])
+            again.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
+            for _ in range(20):
+                if again.evaluate(KEPT, "lectern:resuming") is None:
+                    break
+                again.wait_for_timeout(100)
+            put_away(again)
             again = launch(library, library.url("second.md"))
             results.append(
                 check(
                     "a page put away while loading is opened again",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.wait_for_load_state("load")
+            # Android loses what localStorage had not yet written when an app is closed.
+            again.evaluate("localStorage.clear()")
+            put_away(again)
+            again = launch(library, library.url("second.md"))
+            results.append(
+                check(
+                    "where it was outlasts localStorage",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.wait_for_load_state("load")
+            again.evaluate(KEEP, ["lectern:resuming", "/shelf/elsewhere.md"])
+            again.close()
+            again = launch(library, library.url("second.md"))
+            results.append(
+                check(
+                    "a mark left for another page is no reason to stay away",
                     again.url == library.url("second.md"),
                     again.url,
                 )
@@ -1188,14 +1273,12 @@ def run(engine_name: str, playwright) -> bool:
             # A page that hangs runs nothing, not even on being put away; so the mark is set
             # from an address of the same server that has no reader on it.
             again.goto(library.origin + "/manifest.webmanifest")
-            again.evaluate("localStorage.setItem('lectern:resuming', '1')")
-            again.close()
+            third = library.url("more/third.md").removeprefix(library.origin)
+            again.evaluate(KEEP, ["lectern:resuming", third])
+            put_away(again)
             again = launch(library, library.url(""))
-            kept = again.evaluate(
-                "['lectern:last', 'lectern:resuming'].filter(k => k in localStorage)"
-            )
-            # Arriving at the listing is itself remembered; what must be gone is the document.
-            left = again.url == library.url("") and "lectern:resuming" not in kept
+            mark = again.evaluate(KEPT, "lectern:resuming")
+            left = again.url == library.url("") and mark is None
             results.append(check("a page that never loaded is not opened again", left, again.url))
             again.goto(library.url("more/third.md"))
             again.wait_for_load_state("load")

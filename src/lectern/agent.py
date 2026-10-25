@@ -81,6 +81,11 @@ def uninstall() -> bool:
     return loaded or existed
 
 
+def restart_command() -> str:
+    """What starts the agent afresh, as typed in a terminal."""
+    return f"launchctl kickstart -k {_domain()}/{LABEL}"
+
+
 def describe(printed: str) -> str:
     """What `launchctl print` says about the agent, in a few words."""
     fields: dict[str, str] = {}

@@ -7,6 +7,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .. import __version__
+
 PACKAGE = Path(__file__).resolve().parent.parent
 TEMPLATES = PACKAGE / "templates"
 STATIC = PACKAGE / "static"
@@ -51,5 +53,9 @@ def static_url() -> str:
 def render_page(template: str, static: str | None = None, **context) -> str:
     """`static` is where the assets are: the server's hashed path unless a build says otherwise."""
     return _env.get_template(template).render(
-        static=static_url() if static is None else static, theme_color=THEME_COLOR, **context
+        static=static_url() if static is None else static,
+        theme_color=THEME_COLOR,
+        lectern_version=__version__,
+        assets_hash=asset_hash(),
+        **context,
     )

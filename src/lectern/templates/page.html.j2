@@ -145,6 +145,9 @@
       </div>
     </section>
     <p class="sheet-note">Saved on this device.</p>
+{% if not static_site %}
+    <p class="sheet-note version">Lectern {{ lectern_version }} · {{ assets_hash }}</p>
+{% endif %}
   </div>
 </dialog>
 {% endblock %}

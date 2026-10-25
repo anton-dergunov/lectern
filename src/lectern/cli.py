@@ -214,6 +214,7 @@ def _list(args: argparse.Namespace) -> int:
 
 def _agent(args: argparse.Namespace) -> int:
     from . import agent
+    from .render.page import asset_hash
 
     if args.action == "install":
         saved = config.load()
@@ -235,6 +236,14 @@ def _agent(args: argparse.Namespace) -> int:
             f"answering, serving {', '.join(ping['roots']) or 'nothing yet'}" if ping else ""
         )
         print(f"  port {saved.port}: {answering or 'nothing answering'}")
+        if ping:
+            print(f"  lectern {ping.get('version')}, assets {ping.get('assets')}")
+            # An agent keeps serving the pages it started with; a device then gets old code.
+            if ping.get("assets") != asset_hash():
+                print(
+                    f"  the code on disk has changed since ({asset_hash()}); restart it to serve that:"
+                )
+                print(f"    {agent.restart_command()}")
     return 0
 
 
