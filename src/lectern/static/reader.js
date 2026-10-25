@@ -1003,13 +1003,16 @@
   // ---- Diagrams ----
   // A mermaid diagram arrives as its source in a code block, and is drawn over it here;
   // Mermaid is only on pages that have one. The colours are the theme's, read from the page,
-  // and baked into the drawing, so a new theme draws everything again. One that fails to
-  // draw is left as its source. Drawing is not immediate: `diagramsDrawn` says when it is
+  // and the text is a little smaller than the reading text, as a table's is; both are baked
+  // into the drawing, so a new theme or text size draws everything again. Boxes and lines
+  // are muted, so a diagram sits with the text rather than over it. One that fails to draw
+  // is left as its source. Drawing is not immediate: `diagramsDrawn` says when it is
   // done, for whatever needs the page at its final height.
 
   var diagramsDrawn = Promise.resolve();
   var drawings = 0;
-  var SMALLEST_DIAGRAM = 0.75;
+  var SMALLEST_DIAGRAM = 0.8;
+  var DIAGRAM_TEXT = 0.8;
 
   function themeVariables() {
     var style = getComputedStyle(root);
@@ -1020,12 +1023,13 @@
       darkMode: /-dark$/.test(root.dataset.theme),
       background: color("--bg"),
       primaryColor: color("--bg-alt"),
-      primaryTextColor: color("--fg-strong"),
+      primaryTextColor: color("--fg"),
       primaryBorderColor: color("--fg-muted"),
-      lineColor: color("--fg"),
+      lineColor: color("--fg-muted"),
       textColor: color("--fg"),
       edgeLabelBackground: color("--bg"),
       fontFamily: style.getPropertyValue("--font-ui").trim(),
+      fontSize: Math.round(parseFloat(style.fontSize) * DIAGRAM_TEXT) + "px",
     };
   }
 
@@ -1038,10 +1042,13 @@
       // Text in the drawing as SVG text, not HTML: WebKit measured HTML labels too narrow
       // and wrapped two lines into four.
       htmlLabels: false,
-      flowchart: { htmlLabels: false },
+      flowchart: { htmlLabels: false, nodeSpacing: 30, rankSpacing: 36, padding: 8 },
       theme: "base",
       themeVariables: variables,
       fontFamily: variables && variables.fontFamily,
+      fontSize: variables && parseFloat(variables.fontSize),
+      // Mermaid lets the line show through half of a label on it.
+      themeCSS: ".edgeLabel rect, .labelBkg { opacity: 1; }",
     });
   }
 
@@ -1087,14 +1094,17 @@
     configure();
     // Mermaid sizes each box by its text, so the text must be in the font it will show in.
     var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
-    var drawnIn = root.dataset.theme;
+    var drawnFor = function () {
+      return root.dataset.theme + " " + getComputedStyle(root).fontSize;
+    };
+    var drawnIn = drawnFor();
     diagramsDrawn = fontsReady.then(drawDiagrams);
-    // Every change of setting sets the theme again, mostly to what it was.
+    // Every change of setting sets the theme and text size again, mostly to what they were.
     new MutationObserver(function () {
-      if (root.dataset.theme === drawnIn) return;
-      drawnIn = root.dataset.theme;
+      if (drawnFor() === drawnIn) return;
+      drawnIn = drawnFor();
       diagramsDrawn = diagramsDrawn.then(drawDiagrams);
-    }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    }).observe(root, { attributes: true, attributeFilter: ["data-theme", "style"] });
   }
 
   // ---- Code cells ----

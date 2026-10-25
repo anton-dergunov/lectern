@@ -395,7 +395,7 @@ figure.img img { display: block; }
 /* A diagram's source, shown as code until reader.js draws it; and still, if it could not.
    A drawing too wide for the column is given room as a table is, then made smaller, and
    only then scrolls. */
-figure.diagram { margin: 0 0 0.9rem; }
+figure.diagram { margin: 1.2rem 0 1.4rem; }
 figure.diagram.drawn { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 figure.diagram.drawn > pre { display: none; }
 figure.diagram > svg { display: block; height: auto; margin: 0 auto; }

@@ -131,6 +131,14 @@ lectern agent uninstall
 
 `agent install` starts `lectern serve --all` now and at every login, so the saved folders can be read whenever the Mac is awake. Its output goes to `~/Library/Logs/lectern.log`. Remember that this puts the saved folders on every network the Mac joins; `lectern agent install --host 127.0.0.1` keeps it to the Mac itself, for use behind Tailscale (below). `agent status` also says when the running lectern is older than the one installed, and how to restart it; the reading settings on a device show which version it is reading from.
 
+The agent keeps serving the code it started with. After updating lectern (or changing its code, when it is installed from a checkout with `uv tool install --editable`), restart it:
+
+```sh
+launchctl kickstart -k gui/$(id -u)/com.anton.lectern
+```
+
+`-k` stops the running lectern, and launchd starts it again at once with the same settings; there is no need to uninstall and install. A page already open on a device picks up the new version when it is reloaded.
+
 ### Running a cell
 
 Lectern never runs code. For the rare time something has to be run from the tablet:
