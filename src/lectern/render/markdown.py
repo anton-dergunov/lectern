@@ -60,6 +60,15 @@ class ReaderMarkdownRenderer(IPythonRenderer):
 
         return _IMG_SRC.sub(embed, html)
 
+    def block_mermaidjs(self, code: str) -> str:
+        """A diagram's source as a code block, which `reader.js` draws over.
+
+        nbconvert's version puts the source in unescaped, so a `<br/>` in a label became a
+        line break on the page and was gone from what the diagram was drawn from.
+        """
+        source = self.escape_html(code.strip())
+        return f'<figure class="diagram"><pre><code>{source}</code></pre></figure>\n'
+
     def inline_math(self, body: str) -> str:
         return f'<span class="math inline">{self.escape_html(body)}</span>'
 

@@ -160,6 +160,18 @@ def test_math_typesetting_is_shipped_only_with_math(src: Path, tmp_path: Path):
     assert "katex" not in (tmp_path / "math/study/first.html").read_text()
 
 
+def test_diagram_drawing_is_shipped_only_with_diagrams(src: Path, tmp_path: Path):
+    build(src, tmp_path / "plain", options())
+    assert not [name for name in files(tmp_path / "plain") if "mermaid" in name]
+
+    flow = "# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```"
+    write_notebook(src / "study" / "flow.ipynb", [v4.new_markdown_cell(flow)])
+    build(src, tmp_path / "drawn", options())
+    assert "_static/vendor/mermaid/mermaid.min.js" in files(tmp_path / "drawn")
+    assert "vendor/mermaid/mermaid.min.js" in (tmp_path / "drawn/study/flow.html").read_text()
+    assert "mermaid" not in (tmp_path / "drawn/study/first.html").read_text()
+
+
 def test_markdown_all_and_none(src: Path, tmp_path: Path):
     build(src, tmp_path / "all", options(markdown="all"))
     build(src, tmp_path / "none", options(markdown="none"))

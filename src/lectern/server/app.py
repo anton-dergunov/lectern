@@ -416,6 +416,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             fragment=hit.rendered.fragment,
             toc=hit.rendered.toc,
             math=hit.rendered.has_math,
+            diagrams=hit.rendered.has_diagrams,
             stale=hit.stale,
             path=f"{root_name}/{rel}",
             mtime=target.stat().st_mtime_ns,

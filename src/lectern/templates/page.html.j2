@@ -27,6 +27,10 @@
 <link rel="stylesheet" href="{{ static }}/vendor/katex/katex.min.css{{ version }}">
 <script src="{{ static }}/vendor/katex/katex.min.js{{ version }}" defer></script>
 {% endif %}
+{# Only on pages that have a diagram; before reader.js, which draws them. #}
+{% if diagrams %}
+<script src="{{ static }}/vendor/mermaid/mermaid.min.js{{ version }}" defer></script>
+{% endif %}
 <script src="{{ static }}/boot.js{{ version }}"></script>
 <script src="{{ static }}/reader.js{{ version }}" defer></script>
 </head>

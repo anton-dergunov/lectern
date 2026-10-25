@@ -289,11 +289,11 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 
 /* ---- Code: cells, and fenced blocks in prose ---- */
 
-.highlight, .cell.md pre:not(.highlight pre) {
+.highlight, .cell.md pre:not(.highlight pre), .diagram > pre {
   background: var(--bg-alt);
   border-radius: 6px;
 }
-.highlight pre, .cell.md pre {
+.highlight pre, .cell.md pre, .diagram > pre {
   margin: 0;
   padding: 0.75rem 0.85rem;
   overflow-x: auto;
@@ -392,6 +392,14 @@ h1 code, h2 code, h3 code { font-size: 0.86em; }
 figure.img { margin: 0; }
 figure.img img { display: block; }
 
+/* A diagram's source, shown as code until reader.js draws it; and still, if it could not.
+   A drawing too wide for the column is given room as a table is, then made smaller, and
+   only then scrolls. */
+figure.diagram { margin: 0 0 0.9rem; }
+figure.diagram.drawn { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+figure.diagram.drawn > pre { display: none; }
+figure.diagram > svg { display: block; height: auto; margin: 0 auto; }
+
 /* TeX source, until reader.js typesets it; and still, if it could not. */
 .math { font-family: var(--font-code); font-size: 0.82em; }
 .math.display { display: block; margin: 0.9em 0; overflow-x: auto; white-space: pre-wrap; }
@@ -458,8 +466,9 @@ td.num { text-align: right; white-space: nowrap; }
 th.wide, td.wide { min-width: 8em; }
 .cell.md table { font-size: 0.8rem; }
 /* A table that cannot fit even so is given room in the margins by reader.js, which keeps
-   it on the screen; the cell around it must not cut it at the column's edge. */
-.cell.md:has(.table-wrap.spread), .out:has(.table-wrap.spread) { overflow-x: visible; }
+   it on the screen; the cell around it must not cut it at the column's edge. A diagram too. */
+.cell.md:has(.table-wrap.spread, .diagram.spread),
+.out:has(.table-wrap.spread, .diagram.spread) { overflow-x: visible; }
 
 /* ---- Listings and error pages ---- */
 
@@ -928,9 +937,11 @@ dialog.note-editor::backdrop { background: var(--shade); }
    sideways still does. */
 [data-theme^="eink"] .stream,
 [data-theme^="eink"] .table-wrap,
+[data-theme^="eink"] .diagram,
 [data-theme^="eink"] .highlight pre { scrollbar-width: none; }
 [data-theme^="eink"] .stream::-webkit-scrollbar,
 [data-theme^="eink"] .table-wrap::-webkit-scrollbar,
+[data-theme^="eink"] .diagram::-webkit-scrollbar,
 [data-theme^="eink"] .highlight pre::-webkit-scrollbar { display: none; }
 
 [data-theme^="eink"] .pager {

@@ -203,6 +203,21 @@ CASES: dict[str, list] = {
             "Math('x^2')", [result({"text/latex": "$\\displaystyle x^{2}$", "text/plain": "x**2"})]
         )
     ],
+    "mermaid": [
+        md(
+            "# Diagrams\n\n```mermaid\nflowchart LR\n    A[One message] --> B[Match it to<br/>the graph]\n"
+            "    B -->|new fact| C[(Graph)]\n```\n\nA plain fence stays code:\n\n"
+            "```python\nx = 1\n```\n"
+        ),
+        code(
+            "Mermaid(spec)",
+            [
+                display(
+                    {"text/vnd.mermaid": "sequenceDiagram\n    A->>B: hello\n", "text/plain": "<M>"}
+                )
+            ],
+        ),
+    ],
     "plotly-only": [
         code(
             "fig.show()", [display({"application/vnd.plotly.v1+json": {"data": [], "layout": {}}})]

@@ -8,7 +8,7 @@ Read Jupyter notebooks and markdown on a tablet, served from your laptop over ho
 
 - a listing of the notebooks and markdown files in that directory tree, with each notebook's title, opening paragraph and reading time, or, with **Files**, just the folders and files in that directory, as in a file browser;
 - each notebook as a readable page: prose in a comfortable column, code without the prompt gutter, the outputs that were saved with the notebook, tables whose text wraps to fit the column (one with too many columns to fit takes what it lacks from the margins, and scrolls sideways only if it is wider than the screen);
-- math typeset, plots shown from the pictures saved with them, and a short note where an output needs a running notebook (a widget, an interactive plot saved without a picture);
+- math typeset, mermaid diagrams drawn in the reading theme's colours (from a ```` ```mermaid ```` block in markdown or a notebook's output), plots shown from the pictures saved with them, and a short note where an output needs a running notebook (a widget, an interactive plot saved without a picture);
 - markdown files as pages in the same style, with the links between notebooks and documents working;
 - a contents list for each notebook, and your place in it kept: reopen a notebook and you are where you stopped reading;
 - sections that fold: a marker beside each heading hides everything under it, and the contents list can collapse the whole notebook to its outline and open the part you pick;
@@ -226,6 +226,6 @@ After a deliberate change to how notebooks render, `uv run pytest --update-golde
 
 ## License and credits
 
-MIT, see [LICENSE](LICENSE). Colours are Ethan Schoonover's [Solarized](https://ethanschoonover.com/solarized/). Notebook conversion is [nbconvert](https://nbconvert.readthedocs.io/). Math is typeset by [KaTeX](https://katex.org/) (MIT).
+MIT, see [LICENSE](LICENSE). Colours are Ethan Schoonover's [Solarized](https://ethanschoonover.com/solarized/). Notebook conversion is [nbconvert](https://nbconvert.readthedocs.io/). Math is typeset by [KaTeX](https://katex.org/) (MIT), diagrams are drawn by [Mermaid](https://mermaid.js.org/) (MIT).
 
 On devices without Apple's fonts the pages use [Charis SIL](https://software.sil.org/charis/), [JetBrains Mono](https://www.jetbrains.com/lp/mono/) and [Inter](https://rsms.me/inter/), each under the SIL Open Font License; the licences are in `src/lectern/static/fonts`.

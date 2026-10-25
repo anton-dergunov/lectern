@@ -239,6 +239,7 @@ def build(src: Path, out: Path, options: SiteOptions, clean: bool = False) -> Bu
             fragment=fragment,
             toc=rendered.toc,
             math=rendered.has_math,
+            diagrams=rendered.has_diagrams,
             path=str(rel),
             mtime=path.stat().st_mtime_ns,
         )
@@ -270,9 +271,11 @@ def build(src: Path, out: Path, options: SiteOptions, clean: bool = False) -> Bu
     )
     (out / "index.html").write_text(index, encoding="utf-8")
 
-    # KaTeX is most of the assets' weight; a site with no math does not carry it.
-    has_math = any(rendered.has_math for _, rendered in documents.values())
-    unused = () if has_math else ("katex",)
+    # KaTeX and Mermaid are most of the assets' weight; a site that does not use one does
+    # not carry it.
+    pages = [page for _, page in documents.values()]
+    unused = [] if any(page.has_math for page in pages) else ["katex"]
+    unused += [] if any(page.has_diagrams for page in pages) else ["mermaid"]
     shutil.copytree(
         STATIC, out / "_static", dirs_exist_ok=True, ignore=shutil.ignore_patterns(*unused)
     )

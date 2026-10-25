@@ -722,7 +722,7 @@
   function keepingPlace(change) {
     var place = doc && currentPlace();
     change();
-    spreadTables();
+    spreadWide();
     if (place) goToPlace(place);
   }
 
@@ -1000,6 +1000,103 @@
     });
   }
 
+  // ---- Diagrams ----
+  // A mermaid diagram arrives as its source in a code block, and is drawn over it here;
+  // Mermaid is only on pages that have one. The colours are the theme's, read from the page,
+  // and baked into the drawing, so a new theme draws everything again. One that fails to
+  // draw is left as its source. Drawing is not immediate: `diagramsDrawn` says when it is
+  // done, for whatever needs the page at its final height.
+
+  var diagramsDrawn = Promise.resolve();
+  var drawings = 0;
+  var SMALLEST_DIAGRAM = 0.75;
+
+  function themeVariables() {
+    var style = getComputedStyle(root);
+    function color(name) {
+      return style.getPropertyValue(name).trim();
+    }
+    return {
+      darkMode: /-dark$/.test(root.dataset.theme),
+      background: color("--bg"),
+      primaryColor: color("--bg-alt"),
+      primaryTextColor: color("--fg-strong"),
+      primaryBorderColor: color("--fg-muted"),
+      lineColor: color("--fg"),
+      textColor: color("--fg"),
+      edgeLabelBackground: color("--bg"),
+      fontFamily: style.getPropertyValue("--font-ui").trim(),
+    };
+  }
+
+  function configure(variables) {
+    window.mermaid.initialize({
+      // Left on, Mermaid would draw every `.mermaid` on the page by itself once loaded.
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      // Text in the drawing as SVG text, not HTML: WebKit measured HTML labels too narrow
+      // and wrapped two lines into four.
+      htmlLabels: false,
+      flowchart: { htmlLabels: false },
+      theme: "base",
+      themeVariables: variables,
+      fontFamily: variables && variables.fontFamily,
+    });
+  }
+
+  function drawDiagram(figure) {
+    var source = figure.querySelector(":scope > pre");
+    if (!source) return Promise.resolve();
+    return window.mermaid
+      .render("lectern-diagram-" + ++drawings, source.textContent)
+      .then(function (result) {
+        var holder = document.createElement("div");
+        holder.innerHTML = result.svg;
+        var svg = holder.querySelector("svg");
+        // Mermaid lets it shrink to any width; below this its text is too small to read.
+        var natural = parseFloat(svg.style.maxWidth);
+        if (natural) svg.style.minWidth = natural * SMALLEST_DIAGRAM + "px";
+        var old = figure.querySelector(":scope > svg");
+        if (old) old.replaceWith(svg);
+        else figure.appendChild(svg);
+        figure.classList.add("drawn");
+      });
+  }
+
+  function drawDiagrams() {
+    var figures = document.querySelectorAll("figure.diagram");
+    if (!figures.length) return Promise.resolve();
+    configure(themeVariables());
+    // One at a time: Mermaid keeps state between renders, and draws each in a scratch
+    // element of its own on the page.
+    return Array.prototype.reduce
+      .call(
+        figures,
+        function (previous, figure) {
+          return previous.then(function () {
+            return drawDiagram(figure).catch(function () {});
+          });
+        },
+        Promise.resolve()
+      )
+      .then(spreadWide);
+  }
+
+  if (window.mermaid) {
+    configure();
+    // Mermaid sizes each box by its text, so the text must be in the font it will show in.
+    var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    var drawnIn = root.dataset.theme;
+    diagramsDrawn = fontsReady.then(drawDiagrams);
+    // Every change of setting sets the theme again, mostly to what it was.
+    new MutationObserver(function () {
+      if (root.dataset.theme === drawnIn) return;
+      drawnIn = root.dataset.theme;
+      diagramsDrawn = diagramsDrawn.then(drawDiagrams);
+    }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  }
+
   // ---- Code cells ----
 
   // How each cell starts is decided with the page: by its tags, or else by its length. What
@@ -1116,7 +1213,7 @@
       });
     }
     // A table that was folded away had no width to measure.
-    spreadTables();
+    spreadWide();
     if (!FOLDS) return;
     try {
       var ids = Object.keys(folded);
@@ -1284,16 +1381,24 @@
     pre.after(tools);
   });
 
-  // ---- Tables wider than the column ----
+  // ---- Tables and diagrams wider than the column ----
   // A table whose columns cannot fit the column even with their text wrapped takes what it
   // lacks from the margins, centred on the column, and no more than the screen has; only
   // what is wider than the screen still scrolls. A table that fits is left alone: one that
   // leaves the column is harder to read, so it is the last resort before scrolling.
-  // Without this script such a table scrolls in its wrapper.
+  // Without this script such a table scrolls in its wrapper. A diagram is the same, with
+  // its own width as what it wants; it is smaller than that before it scrolls.
 
-  function spreadTables() {
+  function wantedWidth(wrap) {
+    var table = wrap.querySelector("table");
+    if (table) return table.offsetWidth;
+    var svg = wrap.querySelector(":scope > svg");
+    return svg ? parseFloat(svg.style.maxWidth) || 0 : 0;
+  }
+
+  function spreadWide() {
     if (!doc) return;
-    var wraps = doc.querySelectorAll(".table-wrap");
+    var wraps = doc.querySelectorAll(".table-wrap, figure.diagram.drawn");
     wraps.forEach(function (wrap) {
       wrap.classList.remove("spread");
       wrap.style.width = "";
@@ -1303,16 +1408,16 @@
     var screen = document.documentElement.clientWidth;
     var spreads = [];
     wraps.forEach(function (wrap) {
-      var table = wrap.querySelector("table");
+      var wanted = wantedWidth(wrap);
       var box = wrap.getBoundingClientRect();
       // Folded away, or it fits. A table that cannot fit is at its narrowest already.
-      if (!table || !box.width || table.offsetWidth <= box.width + 1) return;
-      var width = Math.min(table.offsetWidth, screen - 2 * gutter);
+      if (!wanted || !box.width || wanted <= box.width + 1) return;
+      var width = Math.min(wanted, screen - 2 * gutter);
       var left = box.left + (box.width - width) / 2;
       left = Math.max(gutter, Math.min(left, screen - gutter - width));
       spreads.push({ wrap: wrap, width: width, shift: left - box.left });
     });
-    // Measured first and moved after, so that one table's move does not upset the next.
+    // Measured first and moved after, so that one's move does not upset the next.
     spreads.forEach(function (spread) {
       spread.wrap.classList.add("spread");
       spread.wrap.style.width = spread.width + "px";
@@ -1320,9 +1425,9 @@
     });
   }
 
-  spreadTables();
-  window.addEventListener("resize", spreadTables);
-  if (document.fonts) document.fonts.ready.then(spreadTables);
+  spreadWide();
+  window.addEventListener("resize", spreadWide);
+  if (document.fonts) document.fonts.ready.then(spreadWide);
 
   // ---- Notes and highlights ----
   // A mark is a stretch of the page's text, kept as the words themselves, a little of what
@@ -1339,8 +1444,9 @@
   var CONTEXT = 32;
   var LONGEST_MARK = 2000;
   // Text that is not the document's: put there by this script or by the renderer (the
-  // pilcrow that links to a heading), or said twice for a reader.
-  var NOT_MARKED = "button, summary, .cell-n, .stream-tools, .anchor-link, .katex-mathml";
+  // pilcrow that links to a heading), or said twice for a reader. And a diagram, whose text
+  // is not the same before it is drawn and after.
+  var NOT_MARKED = "button, summary, .cell-n, .stream-tools, .anchor-link, .katex-mathml, .diagram";
 
   // The document's text as one string, and where each piece of it is on the page.
   function textModel() {
@@ -2229,6 +2335,10 @@
             goToPlace(saved);
           });
         }
+        // So can diagrams, once drawn.
+        diagramsDrawn.then(function () {
+          goToPlace(saved);
+        });
       }
     }
   }

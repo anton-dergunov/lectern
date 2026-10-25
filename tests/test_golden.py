@@ -49,6 +49,22 @@ def test_math_is_found_only_where_there_is_math():
     assert {name for name, found in has_math.items() if found} == {"math", "latex-output"}
 
 
+def test_diagrams_are_found_only_where_there_are_diagrams():
+    found = {path.stem for path in FIXTURES if render_document(path).has_diagrams}
+
+    assert found == {"mermaid"}
+
+
+def test_a_diagram_is_its_source_escaped_in_a_code_block():
+    fragment = render_document(HERE / "fixtures" / "mermaid.ipynb").fragment
+
+    assert fragment.count('<figure class="diagram"><pre><code>') == 2
+    assert "B[Match it to&lt;br/&gt;the graph]" in fragment
+    assert "<br/>" not in fragment
+    assert "A-&gt;&gt;B: hello" in fragment
+    assert "jp-Mermaid" not in fragment
+
+
 def test_printed_dollar_signs_are_not_math():
     fragment = render_document(HERE / "fixtures" / "math.ipynb").fragment
 

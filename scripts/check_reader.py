@@ -6,7 +6,7 @@ Runs against the test fixtures on a local port, in Chromium and WebKit. Checks t
 bar hiding, the reading position surviving a reload and a text-size change, settings,
 the contents list, folding sections, long output, the e-ink theme's page turning, marking
 text, going back and forward between documents and out of Not Found, a listing as files,
-tables fitting the column, finding words and coming back to the last
+tables fitting the column, diagrams being drawn, finding words and coming back to the last
 page in a Home Screen app, and what happens when the server stops.
 
 Needs the browsers once: `uv run --group shots playwright install chromium webkit`.
@@ -371,6 +371,56 @@ def run(engine_name: str, playwright) -> bool:
         page.wait_for_load_state("networkidle")
         asked = [url for url in fetched if "katex" in url]
         results.append(check("a page without math fetches no math typesetting", not asked, asked))
+        asked = [url for url in fetched if "mermaid" in url]
+        results.append(check("nor diagram drawing", not asked, asked))
+
+        # ---- Diagrams ----
+        refused: list[str] = []
+
+        def console_error(message) -> None:
+            if message.type == "error":
+                refused.append(message.text)
+
+        page.on("console", console_error)
+        page.goto(server.url("mermaid.ipynb"))
+        drawn = "document.querySelectorAll('figure.diagram.drawn > svg').length"
+        try:
+            page.wait_for_function(f"{drawn} === 2", timeout=10000)
+        except Exception:
+            pass
+        results.append(check("diagrams are drawn", page.evaluate(drawn) == 2, page.evaluate(drawn)))
+        page.remove_listener("console", console_error)
+        results.append(check("within the page's policy", not refused, refused))
+        label = page.locator("figure.diagram svg").first.text_content()
+        split = "Match it tothe graph" in label and "<br" not in label
+        results.append(check("a <br/> in a label breaks the line", split, label))
+        hidden = not page.locator("figure.diagram > pre").first.is_visible()
+        results.append(check("and the source is put away", hidden))
+        FILL = """() => getComputedStyle(
+          document.querySelector('figure.diagram svg .node rect, figure.diagram svg .node path')
+        ).fill"""
+        light = page.evaluate(FILL)
+        page.get_by_role("button", name="Reading settings").click()
+        page.get_by_role("button", name="Dark", exact=True).click()
+        try:
+            page.wait_for_function(f"({FILL})() !== {json.dumps(light)}", timeout=5000)
+        except Exception:
+            pass
+        dark = page.evaluate(FILL)
+        results.append(check("a new theme draws them again", dark != light, f"{light} -> {dark}"))
+        page.get_by_role("button", name="Light", exact=True).click()
+        page.locator("#settings").get_by_role("button", name="Done").click()
+
+        # Its own context: a request through the service worker is out of a route's reach.
+        isolated = browser.new_context(service_workers="block")
+        bare = isolated.new_page()
+        bare.route("**/mermaid.min.js*", lambda route: route.abort())
+        bare.goto(server.url("mermaid.ipynb"))
+        bare.wait_for_load_state("networkidle")
+        source = bare.locator("figure.diagram > pre").first
+        readable = source.is_visible() and "flowchart LR" in source.inner_text()
+        results.append(check("without Mermaid, a diagram reads as its source", readable))
+        isolated.close()
 
         page.goto(server.url("long-traceback.ipynb"))
         folded = not page.locator("pre.error").is_visible()

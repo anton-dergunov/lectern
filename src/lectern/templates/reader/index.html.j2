@@ -85,6 +85,10 @@
 <div class="math display">{{ output.data['text/latex'] | escape_html }}</div>
 {%- endblock data_latex %}
 
+{% block data_mermaid scoped -%}
+<figure class="diagram"><pre><code>{{ output.data['text/vnd.mermaid'].strip() | escape_html }}</code></pre></figure>
+{%- endblock data_mermaid %}
+
 {% block data_png scoped -%}
 {{ figure(output, cell, 'image/png', 'data:image/png;base64,' ~ (output.data['image/png'] | escape_html)) }}
 {%- endblock data_png %}

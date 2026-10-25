@@ -72,6 +72,20 @@ def test_math_typesetting_is_loaded_only_where_there_is_math(server, root: Path)
     assert response.status == 200 and response.getheader("Content-Type") == "font/woff2"
 
 
+def test_diagrams_are_loaded_only_where_there_is_a_diagram(server, root: Path):
+    (root / "docs" / "flow.md").write_text("# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```\n")
+    _, with_diagram = request(server, "/proj/docs/flow.md")
+    _, without = request(server, "/proj/notebooks/sample.ipynb")
+
+    assert "mermaid" not in without
+    script = next(
+        part.split('"')[0] for part in with_diagram.split('<script src="') if "mermaid" in part
+    )
+    assert script.split("?")[0].endswith("/vendor/mermaid/mermaid.min.js")
+    response, _ = request(server, script)
+    assert response.status == 200
+
+
 def test_every_bundled_font_the_stylesheet_names_is_served(server):
     import re
 

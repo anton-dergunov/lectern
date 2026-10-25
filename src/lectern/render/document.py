@@ -16,6 +16,7 @@ class Rendered:
     toc: list[Heading]
     title: str
     has_math: bool
+    has_diagrams: bool = False
 
 
 def finish(html: str, path: Path) -> Rendered:
@@ -24,4 +25,6 @@ def finish(html: str, path: Path) -> Rendered:
     rewrite_links(soup, path)
     toc, title = extract_toc(soup)
     fragment = str(soup)
-    return Rendered(fragment, toc, title or path.stem, 'class="math' in fragment)
+    return Rendered(
+        fragment, toc, title or path.stem, 'class="math' in fragment, 'class="diagram"' in fragment
+    )
