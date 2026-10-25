@@ -1104,12 +1104,16 @@ def run(engine_name: str, playwright) -> bool:
                 opened.wait_for_timeout(100)
             opened.close()
 
-        def launch(library: LocalServer, lands_on: str, drop: str = "", method: str = "") -> Page:
+        def launch(
+            library: LocalServer, lands_on: str, drop: str = "", method: str = "", script: str = ""
+        ) -> Page:
             """The icon tapped again: a new page, with nothing kept from the one before.
             The first request to `drop` (by `method`, if given) gets no answer, as when the
-            device is still finding the network."""
+            device is still finding the network. `script` runs first on every page it loads."""
             opened = home_screen.new_page()
             opened.on("pageerror", lambda error: errors.append(str(error)))
+            if script:
+                opened.add_init_script(script)
             if drop:
                 dropped = []
 
@@ -1287,6 +1291,133 @@ def run(engine_name: str, playwright) -> bool:
             again = launch(library, library.url(""))
             results.append(
                 check("nor is one that is gone", again.url == library.url(""), again.url)
+            )
+
+            def trail_to(*names: str, saved: int | None = None) -> dict:
+                steps = [
+                    {
+                        "url": library.url(n).removeprefix(library.origin),
+                        "title": n.removesuffix(".md").title(),
+                    }
+                    for n in names
+                ]
+                trail = {"list": steps, "at": len(steps) - 1}
+                return trail if saved is None else {**trail, "saved": saved}
+
+            store = "t => localStorage.setItem('lectern:last', JSON.stringify(t))"
+            again.goto(library.url("second.md"))
+            again.wait_for_load_state("load")
+            # What lectern 0.2.3 left in localStorage, never written since.
+            again.evaluate(store, trail_to("first.md"))
+            put_away(again)
+            again = launch(library, library.url("second.md"))
+            results.append(
+                check(
+                    "a copy that stopped being written is not gone back to",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.wait_for_load_state("load")
+            put_away(again)
+            # As WebKit can be, for a moment after a long sleep.
+            unreachable = (
+                "indexedDB.open = () => { throw new DOMException('lost', 'UnknownError'); }"
+            )
+            again = launch(library, library.url("second.md"), script=unreachable)
+            results.append(
+                check(
+                    "with IndexedDB out of reach, the app still opens where it was",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.close()
+            again = home_screen.new_page()
+            again.on("pageerror", lambda error: errors.append(str(error)))
+            again.goto(library.url("first.md"))
+            again.wait_for_load_state("load")
+            for _ in range(30):
+                if again.evaluate(AT_KEPT):
+                    break
+                again.wait_for_timeout(100)
+            # The browser bringing back a page from its own session, long after the reader
+            # had gone on from it.
+            later = trail_to("first.md", "second.md", saved=again.evaluate("Date.now()") + 1000)
+            again.evaluate(KEEP, ["lectern:last", later])
+            again.evaluate(store, later)
+            again.reload()
+            try:
+                again.wait_for_url(library.url("second.md"), timeout=5000)
+            except Exception:
+                pass
+            again.wait_for_load_state("load")
+            back = again.locator(".bar a.back").get_attribute("aria-label")
+            results.append(
+                check(
+                    "a page brought back from long ago goes on to where the reader was",
+                    again.url == library.url("second.md") and back == "Back to First",
+                    [again.url, back],
+                )
+            )
+            again.reload()
+            again.wait_for_load_state("load")
+            settle(again)
+            results.append(
+                check(
+                    "a reload stays where it is", again.url == library.url("second.md"), again.url
+                )
+            )
+            again.goto(library.url("first.md"))
+            again.get_by_role("link", name="the other").click()
+            again.wait_for_url(library.url("second.md"))
+            again.wait_for_load_state("load")
+            again.go_back()
+            again.wait_for_url(library.url("first.md"))
+            again.wait_for_timeout(1000)
+            results.append(
+                check("and so does a step back", again.url == library.url("first.md"), again.url)
+            )
+            again.get_by_role("button", name="Reading settings").click()
+            said = again.locator("#settings .reopenings li")
+            results.append(
+                check(
+                    "the settings list what each reopening did",
+                    said.count() > 0 and "IndexedDB" in said.first.text_content(),
+                    said.count(),
+                )
+            )
+            put_away(again)
+
+            # A start page cached by an older lectern loads the new one before it decides.
+            again = home_screen.new_page()
+            again.on("pageerror", lambda error: errors.append(str(error)))
+            loads = []
+
+            def old_shell(route):
+                if route.request.resource_type != "document":
+                    route.continue_()
+                    return
+                loads.append(route.request.url)
+                if len(loads) > 1:
+                    route.continue_()
+                    return
+                response = route.fetch()
+                body = response.text().replace('data-assets="', 'data-assets="old-')
+                route.fulfill(response=response, body=body)
+
+            again.route(library.origin + "/", old_shell)
+            again.goto(library.origin + "/")
+            try:
+                again.wait_for_url(library.url("first.md"), timeout=5000)
+            except Exception:
+                pass
+            results.append(
+                check(
+                    "a start page from an older lectern is loaded afresh first",
+                    again.url == library.url("first.md") and len(loads) == 2,
+                    [again.url, loads],
+                )
             )
             again.close()
             page.goto(library.origin + "/")

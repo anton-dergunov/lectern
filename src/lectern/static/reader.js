@@ -106,6 +106,7 @@
   var TRAIL = "lectern:trail";
   var LAST = "lectern:last";
   var RESUMING = "lectern:resuming";
+  var REFRESHED = "lectern:refreshed";
 
   // Chrome writes localStorage to the disk a minute or more after the page does, and an
   // Android app that is closed or pushed out of memory loses what had not been written. So
@@ -113,6 +114,8 @@
   // in localStorage only where IndexedDB cannot be had. Neither function ever fails.
   var KEPT = "kept";
   var keptDatabase = null;
+  // Why IndexedDB last failed on this page, for the record of reopenings.
+  var keptTrouble = "";
 
   function openKept() {
     if (!keptDatabase) {
@@ -146,7 +149,8 @@
           };
         });
       })
-      .catch(function () {
+      .catch(function (error) {
+        keptTrouble = (error && error.name) || "failed";
         try {
           return JSON.parse(localStorage.getItem(name));
         } catch (e) {
@@ -171,7 +175,8 @@
           };
         });
       })
-      .catch(function () {
+      .catch(function (error) {
+        keptTrouble = (error && error.name) || "failed";
         try {
           if (value == null) localStorage.removeItem(name);
           else localStorage.setItem(name, JSON.stringify(value));
@@ -179,50 +184,163 @@
       });
   }
 
+  // The trail is kept in both, stamped with when it was: IndexedDB can be out of reach for
+  // a moment after a long sleep, and a copy that stopped being written must not win then.
+  // localStorage is at worst a minute behind; whichever copy is newer is the one gone back to.
+  function keepLast(trail) {
+    try {
+      if (trail == null) localStorage.removeItem(LAST);
+      else localStorage.setItem(LAST, JSON.stringify(trail));
+    } catch (e) {}
+    return keep(LAST, trail);
+  }
+
+  function stamp(trail) {
+    return trail && typeof trail.saved === "number" ? trail.saved : 0;
+  }
+
+  // Both copies, and the newer of them as `trail`.
+  function keptLast() {
+    var stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(LAST));
+    } catch (e) {}
+    return kept(LAST).then(function (database) {
+      var trail = stamp(database) >= stamp(stored) ? database : stored;
+      return { trail: trail, database: database, stored: stored };
+    });
+  }
+
+  // The address a trail ends on, if it is a path on this server and nothing else.
+  function trailEnd(trail) {
+    var last = trail && Array.isArray(trail.list) && trail.list[trail.at];
+    var url = last && typeof last.url === "string" ? last.url : "";
+    return url.charAt(0) === "/" && url.charAt(1) !== "/" ? url : "";
+  }
+
+  // ---- What each reopening found and did, shown in the reading settings ----
+  // Kept on this device only, as a way to tell afterwards why the app opened where it did.
+
+  var REOPENED = "lectern:reopened";
+  var REOPENED_KEEPS = 10;
+
+  function noteReopening(how, found, went, tab) {
+    var brief = function (trail) {
+      return trail ? { url: trailEnd(trail), saved: stamp(trail) } : null;
+    };
+    try {
+      var list = JSON.parse(localStorage.getItem(REOPENED));
+      if (!Array.isArray(list)) list = [];
+      list.unshift({
+        at: Date.now(),
+        how: how,
+        page: location.pathname + location.search,
+        database: brief(found.database),
+        stored: brief(found.stored),
+        tab: tab || 0,
+        trouble: keptTrouble,
+        went: went,
+        assets: (assets.match(/\/_static\/([^/]+)\//) || ["", ""])[1],
+      });
+      localStorage.setItem(REOPENED, JSON.stringify(list.slice(0, REOPENED_KEEPS)));
+    } catch (e) {}
+  }
+
+  function showReopenings(sheet) {
+    var list = null;
+    try {
+      list = JSON.parse(localStorage.getItem(REOPENED));
+    } catch (e) {}
+    var shown = sheet.querySelector(".reopenings");
+    if (!Array.isArray(list) || !list.length) {
+      if (shown) shown.remove();
+      return;
+    }
+    var when = function (time) {
+      if (!time) return "never";
+      return new Date(time).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    };
+    var copy = function (name, brief) {
+      return name + " " + (brief ? (brief.url || "?") + " at " + when(brief.saved) : "none");
+    };
+    if (!shown) {
+      shown = document.createElement("details");
+      shown.className = "reopenings";
+      shown.innerHTML = "<summary>Recent reopenings</summary><ol></ol>";
+      var version = sheet.querySelector(".sheet-note.version");
+      if (version) version.after(shown);
+      else sheet.querySelector(".sheet-panel").append(shown);
+    }
+    var items = shown.querySelector("ol");
+    items.textContent = "";
+    list.forEach(function (entry) {
+      var item = document.createElement("li");
+      item.textContent = [
+        when(entry.at) + ": " + entry.how + " on " + entry.page + ", " + entry.went,
+        copy("IndexedDB", entry.database) + (entry.trouble ? " (" + entry.trouble + ")" : ""),
+        copy("localStorage", entry.stored),
+        "this tab's trail at " + when(entry.tab) + " · " + entry.assets,
+      ].join("\n");
+      items.append(item);
+    });
+  }
+
   // The address to go back to, or nothing; it fails if the server could not be asked. A
   // page that was gone back to and never got as far as running is not tried again:
   // quitting is the only way out of a page that hangs, and it must not lead straight back in.
   function lastPlace() {
     if (!standalone) return Promise.resolve(null);
-    return Promise.all([kept(LAST), kept(RESUMING)]).then(function (found) {
-      var trail = found[0];
-      if (!trail) {
-        // Where lectern 0.2.3 and before kept it.
-        try {
-          trail = JSON.parse(localStorage.getItem(LAST));
-          localStorage.removeItem(LAST);
-          localStorage.removeItem(RESUMING);
-        } catch (e) {}
+    return Promise.all([keptLast(), kept(RESUMING)]).then(function (found) {
+      var trail = found[0].trail;
+      var url = trailEnd(trail);
+      var went = function (where) {
+        noteReopening("start page", found[0], where);
+      };
+      if (!url) {
+        went("went to the listing (nothing kept)");
+        return null;
       }
-      var last = trail && Array.isArray(trail.list) && trail.list[trail.at];
-      var url = last && typeof last.url === "string" ? last.url : "";
-      // A path on this server and nothing else.
-      if (url.charAt(0) !== "/" || url.charAt(1) === "/") return null;
       // The mark names the page it was set for; one left for another page means nothing.
       if (found[1] === url) {
-        return Promise.all([keep(LAST, null), keep(RESUMING, null)]).then(function () {
+        went("went to the listing (" + url + " never loaded)");
+        return Promise.all([keepLast(null), keep(RESUMING, null)]).then(function () {
           return null;
         });
       }
       // No answer at all is not news that the page is gone: a device back from a long sleep
       // can take a moment to find the network again.
-      return fetch(url, { method: "HEAD", cache: "no-store" }).then(function (response) {
-        if (!response.ok) {
-          // Renamed, deleted, or in a folder that is no longer served.
-          return keep(LAST, null).then(function () {
+      return fetch(url, { method: "HEAD", cache: "no-store" }).then(
+        function (response) {
+          if (!response.ok) {
+            // Renamed, deleted, or in a folder that is no longer served.
+            went("went to the listing (" + url + " answered " + response.status + ")");
+            return keepLast(null).then(function () {
+              return null;
+            });
+          }
+          try {
+            sessionStorage.setItem(TRAIL, JSON.stringify(trail));
+          } catch (e) {
+            went("went to the listing (no sessionStorage)");
             return null;
+          }
+          went("went to " + url);
+          // On the disk before leaving: a write still under way can be lost with the page.
+          return keep(RESUMING, url).then(function () {
+            return url;
           });
+        },
+        function (error) {
+          went("waited (" + url + " did not answer)");
+          throw error;
         }
-        try {
-          sessionStorage.setItem(TRAIL, JSON.stringify(trail));
-        } catch (e) {
-          return null;
-        }
-        // On the disk before leaving: a write still under way can be lost with the page.
-        return keep(RESUMING, url).then(function () {
-          return url;
-        });
-      });
+      );
     });
   }
 
@@ -250,10 +368,24 @@
     };
     ping().then(
       function (info) {
-        // A newer lectern than the one that cached this page: refresh the cached copy.
-        var refresh =
-          info.assets === shell.dataset.assets ? Promise.resolve() : fetch("/", { cache: "reload" });
-        refresh.catch(function () {}).then(resume);
+        if (info.assets === shell.dataset.assets) {
+          resume();
+          return;
+        }
+        // A newer lectern than the one that cached this page: refresh the cached copy and
+        // load it, so that the new script decides where to go. Once only, in case a browser
+        // keeps the old copy whatever it is asked.
+        fetch("/", { cache: "reload" })
+          .catch(function () {})
+          .then(function () {
+            var again = false;
+            try {
+              again = sessionStorage.getItem(REFRESHED) !== info.assets;
+              sessionStorage.setItem(REFRESHED, info.assets);
+            } catch (e) {}
+            if (again) location.reload();
+            else resume();
+          });
       },
       function () {
         waitForServer(resume);
@@ -305,6 +437,8 @@
       move = sessionStorage.getItem(TRAIL_MOVE);
       sessionStorage.removeItem(TRAIL_MOVE);
     } catch (e) {}
+    // When this tab last wrote its trail, before this page.
+    var tab = stamp(trail);
     if (!trail || !Array.isArray(trail.list) || !trail.list[trail.at]) trail = { list: [], at: -1 };
     function isHere(index) {
       return Boolean(trail.list[index]) && trail.list[index].url === address;
@@ -324,13 +458,14 @@
       trail.at = trail.list.length - 1;
     }
     trail.list[trail.at].title = document.title;
+    trail.saved = Date.now();
     try {
       sessionStorage.setItem(TRAIL, JSON.stringify(trail));
     } catch (e) {
       // Nowhere to keep it: the chevron stays the way up to the folder.
       return;
     }
-    if (served && standalone) keep(LAST, trail);
+    if (served && standalone) keepOrGoBack(trail, tab, arrival);
 
     var previous = trail.list[trail.at - 1];
     var next = trail.list[trail.at + 1];
@@ -366,6 +501,36 @@
     }
   }
 
+  // A device that puts the app away without it being closed brings back the page from a
+  // session of the browser's own, and that can be one left long ago, along with its trail.
+  // A kept trail newer than this tab's is where the reader was, and the app goes there. A
+  // reload or a step back finds the two the same, since this tab wrote both.
+  var leaving = false;
+
+  function keepOrGoBack(trail, tab, arrival) {
+    keptLast().then(function (found) {
+      var newest = found.trail;
+      var there = trailEnd(newest);
+      var restored = arrival === "reload" || arrival === "back_forward";
+      var stale = restored && stamp(newest) > tab && there && there !== address;
+      if (stale || !tab || stamp(newest) > tab) {
+        var how = (restored ? "restored" : "opened") + " (" + (arrival || "?") + ")";
+        noteReopening(how, found, stale ? "went to " + there : "stayed", tab);
+      }
+      if (!stale) return keepLast(trail);
+      try {
+        sessionStorage.setItem(TRAIL, JSON.stringify(newest));
+      } catch (e) {
+        return keepLast(trail);
+      }
+      // Marked as the start page marks it, so a page that hangs is not gone back to twice.
+      leaving = true;
+      return keep(RESUMING, there).then(function () {
+        location.replace(there);
+      });
+    });
+  }
+
   if (bar) {
     var arrived = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
     syncTrail(arrived ? arrived.type : "");
@@ -377,7 +542,7 @@
     // back to. A page that hangs does neither. Waiting for `load` alone would count one put
     // away before its last image arrived as hanging.
     var settled = function () {
-      if (standalone) keep(RESUMING, null);
+      if (standalone && !leaving) keep(RESUMING, null);
     };
     window.addEventListener("load", settled);
     window.addEventListener("pagehide", settled);
@@ -475,6 +640,7 @@
     button.addEventListener("click", function () {
       var sheet = document.getElementById(button.dataset.open);
       if (sheet.id === "toc") markCurrentHeading(sheet);
+      if (sheet.id === "settings" && standalone) showReopenings(sheet);
       openSheet(sheet);
     });
   });

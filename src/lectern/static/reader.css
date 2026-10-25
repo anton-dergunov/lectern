@@ -605,6 +605,10 @@ dialog.sheet {
 }
 .sheet-note { margin: 1.6rem 0 0; font-size: 0.68rem; color: var(--fg-muted); }
 .sheet-note.version { margin-top: 0.4rem; }
+.reopenings { margin-top: 0.6rem; font-size: 0.68rem; color: var(--fg-muted); }
+.reopenings summary { cursor: pointer; }
+.reopenings ol { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.reopenings li { margin-bottom: 0.5rem; white-space: pre-line; overflow-wrap: anywhere; }
 
 .toc { display: flex; flex-direction: column; margin-top: 0.4rem; }
 .toc a {
