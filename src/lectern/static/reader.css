@@ -744,7 +744,8 @@ dialog.sheet {
 /* Black only: a broken line under each, and the one gone to in white on black. */
 [data-theme="eink"] .doc ::highlight(lectern-find) { text-decoration: underline dashed 2px var(--mark-line); }
 [data-theme="eink"] .doc ::highlight(lectern-find-current) { background-color: var(--fg); color: var(--bg); }
-/* Set for a moment on the block a mark was taken from, to have it painted again. */
+/* Set for a moment on the block a mark was taken from, or on an SVG picture, to have it
+   painted again. */
 [data-repaint] { outline: 1px solid transparent; }
 
 /* What can be done with a mark that was tapped, beside it on the page. */

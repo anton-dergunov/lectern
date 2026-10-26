@@ -1439,6 +1439,56 @@
   window.addEventListener("resize", spreadWide);
   if (document.fonts) document.fonts.ready.then(spreadWide);
 
+  // ---- Pictures in SVG ----
+  // An SVG shown through <img> can bring its own fonts, and WebKit draws its text only once
+  // they have loaded but does not paint the picture again when they have: on an iPad it shows
+  // boxes and lines with no words until scrolling repaints that part of the screen. So each SVG
+  // picture is repainted a few times after it first comes into view, with the transparent
+  // outline a removed mark's block gets: nothing is laid out again and nothing shows.
+
+  var REPAINTS = [150, 600, 2000];
+
+  function isSvgPicture(img) {
+    if (/^data:image\/svg\+xml/i.test(img.src)) return true;
+    try {
+      return /\.svg$/i.test(new URL(img.src).pathname);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function repaintPicture(img) {
+    img.setAttribute("data-repaint", "");
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        img.removeAttribute("data-repaint");
+      });
+    });
+  }
+
+  function repaintSoon(img) {
+    REPAINTS.forEach(function (delay) {
+      setTimeout(function () {
+        repaintPicture(img);
+      }, delay);
+    });
+  }
+
+  if (doc && "IntersectionObserver" in window) {
+    var pictures = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var img = entry.target;
+        pictures.unobserve(img);
+        if (img.complete) repaintSoon(img);
+        else img.addEventListener("load", repaintSoon.bind(null, img), { once: true });
+      });
+    });
+    doc.querySelectorAll("img").forEach(function (img) {
+      if (isSvgPicture(img)) pictures.observe(img);
+    });
+  }
+
   // ---- Notes and highlights ----
   // A mark is a stretch of the page's text, kept as the words themselves, a little of what
   // stands either side of them and the cell they are in, so that it is found again after
