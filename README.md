@@ -50,6 +50,19 @@ Lectern does both. It turns notebooks and markdown into clean, readable pages. I
 **Publish as a website**
 - The same pages as a static site for GitHub Pages or any host, with the same themes, settings and e-ink support for your readers.
 
+## How it compares
+
+Before writing lectern I looked for a tool that would let me browse a folder, tap a notebook and get a page that reads well on a tablet. I did not find one that was maintained:
+
+- **JupyterLab and Jupyter Notebook** are editors that run code, so every device needs a token or password. On a touch screen, scrolling selects cells and menus close under the finger.
+- **VS Code in the browser** (a tunnel, vscode.dev or code-server) is an editor too, and on an iPad its notebooks do not scroll by touch.
+- **GitHub's notebook view** shows only what is committed and pushed, often fails to open a notebook at all, and has nowhere to keep your notes.
+- **nbviewer** shows a notebook from a URL or a GitHub repository. It is a service for sharing, not a reader for the folder on your computer.
+- **Quarto and Jupyter Book** build polished websites and books from a project set up for them, and are the better choice for a book. They are publishing tools rather than a reader for the folder you are working in.
+- **Voilà** turns a notebook into a dashboard by running it with a fresh kernel, instead of showing the outputs you saved.
+
+Lectern is a reader, not an editor. Because it never runs code, it needs no token or password. It shows the folder you are working in as you last saved it, set for a tablet, a phone or an e-ink screen, and it keeps your highlights and notes. The same pages publish as a website.
+
 ## Install
 
 You need Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).

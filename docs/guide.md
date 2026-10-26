@@ -225,7 +225,7 @@ To publish from GitHub Actions, use the build steps below in a Pages workflow (S
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - name: Render notebooks
-        run: uvx --from "git+https://github.com/anton-dergunov/lectern@v0.3.0" lectern build . -o _site
+        run: uvx --from "git+https://github.com/anton-dergunov/lectern@v0.4.0" lectern build . -o _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
