@@ -26,6 +26,8 @@ lectern = "lectern.cli:main"
 dev = ["pytest>=8.3", "ruff>=0.16.10"]
 # For scripts/shots.py and scripts/check_reader.py, which drive real browsers.
 shots = ["playwright>=1.50"]
+# For scripts/make_example.py, which runs the sample notebook once to save its outputs.
+example = ["ipykernel>=6.29", "matplotlib>=3.9", "nbclient>=0.10", "numpy>=2.0", "pandas>=2.2"]
 
 [build-system]
 requires = ["hatchling"]

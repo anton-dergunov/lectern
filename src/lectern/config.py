@@ -8,7 +8,7 @@ extra_hosts = []            # other names this Mac is reached by, e.g. its ts.ne
 notes = false               # only to switch highlights and notes off; they are on without it
 
 [roots]
-"agent-memory-eval" = "~/projects/writing/agent-memory-eval"
+"ml-study" = "~/notes/ml-study"
 """
 
 import json

@@ -13,7 +13,7 @@ def _run(*argv: str) -> str | None:
 
 
 def local_hostname() -> str:
-    """The Bonjour name without `.local`, e.g. `Antons-MacBook-Air-13`."""
+    """The Bonjour name without `.local`, e.g. `your-desktop`."""
     return _run("scutil", "--get", "LocalHostName") or socket.gethostname().removesuffix(".local")
 
 

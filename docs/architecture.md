@@ -1,6 +1,6 @@
 # Approach and architecture
 
-What lectern is built to be, how a page gets made, and where each part lives. The [README](../README.md) covers using it.
+What lectern is built to be, how a page gets made, and where each part lives. The [guide](guide.md) covers using it.
 
 ## Approach
 
@@ -64,7 +64,9 @@ A request whose `Host` is not this Mac's `.local` name, `localhost`, an IP addre
 | `src/lectern/config.py`, `agent.py`, `lab.py`, `netinfo.py` | Saved folders, the login agent, JupyterLab, the Mac's names on the network. |
 | `src/lectern/templates/`, `static/` | Page templates; scripts, stylesheets, fonts and icons. |
 | `tests/` | Unit tests. `tests/fixtures` has one notebook per rendering case, `tests/golden` what each should render to. |
-| `scripts/` | `check_reader.py` and `shots.py` drive Chromium and WebKit, for what unit tests cannot see; `make_fixtures.py` writes the fixtures. |
+| `scripts/` | `check_reader.py` and `shots.py` drive Chromium and WebKit, for what unit tests cannot see; `make_fixtures.py` writes the fixtures; `make_example.py` and `picture.py` make the sample notebook and the README picture. |
+| `examples/` | The sample notebook, committed with its outputs. |
+| `docs/pictures/` | The README picture and the device frame it is composed in. |
 
 ## Other people's files
 
@@ -75,3 +77,29 @@ Kept whole and unedited, with their licences beside them.
 | `static/vendor/katex` | KaTeX 0.19.0: the script, the stylesheet and the woff2 fonts. Added to a page only when it has math. |
 | `static/vendor/mermaid` | Mermaid 11.17.2: `mermaid.min.js`, the single-file build from the npm package's `dist/`. Added to a page only when it has a diagram. |
 | `static/fonts` | Charis SIL 6.101 for text, JetBrains Mono 2.211 for code and Inter 4.001 for the interface, Latin subsets as woff2. The font stacks name Apple's own fonts first, so an iPad or a Mac never fetches these. |
+
+## Working on lectern
+
+```sh
+uv sync
+uv run pytest
+uv run ruff check . && uv run ruff format --check .
+```
+
+Two scripts drive real browsers (Chromium and WebKit) against the test fixtures. They need the browsers once: `uv run --group shots playwright install chromium webkit`.
+
+```sh
+uv run --group shots python scripts/check_reader.py     # behaviour: position, settings, contents, server stopped
+uv run --group shots python scripts/shots.py --out shots  # screenshots at the iPad's size
+```
+
+After a deliberate change to how notebooks render, `uv run pytest --update-golden` rewrites `tests/golden`; read the diff before committing it.
+
+The README picture is made from the sample notebook, so it can be made again after the pages change:
+
+```sh
+uv run --group example python scripts/make_example.py   # rewrite and run examples/step-size.ipynb
+uv run --group shots python scripts/picture.py          # docs/pictures/lectern.png
+```
+
+`picture.py` serves a copy of `examples/`, so the highlight it makes never reaches the repo, and uses `pngquant` when it is installed.
