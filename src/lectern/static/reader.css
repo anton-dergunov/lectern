@@ -210,9 +210,7 @@ p, ul, ol, dl, blockquote { margin-top: 0; margin-bottom: 0.9em; }
 .cell.md details { margin-bottom: 0.9em; }
 .cell.md details > summary { cursor: pointer; }
 .cell.md details[open] > summary { margin-bottom: 0.5em; }
-/* No hanging-punctuation: a quote or bracket out in the margin threw the iPad's selection
-   handle back into the paragraph before. */
-p { text-wrap: pretty; }
+p { text-wrap: pretty; hanging-punctuation: first; }
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--fg-strong);
@@ -232,7 +230,9 @@ h4, h5, h6 { font-size: 1rem; margin-top: 1.5em; }
 
 /* Folding a section. reader.js puts the marker in each heading that has something under
    it: in the margin where the screen has one, otherwise before the heading's text. The
-   clamp flips between the two at the width where 2.6rem of margin appears. */
+   clamp flips between the two at the width where 2.6rem of margin appears. It is kept out
+   of selections: on an iPad, a long press on the heading's first word otherwise selected
+   the last word of the paragraph before. */
 .fold {
   position: relative;
   width: 1.2rem;
@@ -245,10 +245,11 @@ h4, h5, h6 { font-size: 1rem; margin-top: 1.5em; }
   font-size: inherit;
   vertical-align: top;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 /* A target for a finger, larger than the marker, but not over the heading's text: a point
-   there would land in the button, and a selection started on the first word would jump
-   back to the end of the paragraph before. */
+   there would land in the button, not in the first word. */
 .fold::after { content: ""; position: absolute; inset: -9px 0 -9px -10px; }
 .fold::before {
   content: "";
