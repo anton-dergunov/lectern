@@ -210,7 +210,9 @@ p, ul, ol, dl, blockquote { margin-top: 0; margin-bottom: 0.9em; }
 .cell.md details { margin-bottom: 0.9em; }
 .cell.md details > summary { cursor: pointer; }
 .cell.md details[open] > summary { margin-bottom: 0.5em; }
-p { text-wrap: pretty; hanging-punctuation: first; }
+/* No hanging-punctuation: a quote or bracket out in the margin threw the iPad's selection
+   handle back into the paragraph before. */
+p { text-wrap: pretty; }
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--fg-strong);
@@ -244,8 +246,10 @@ h4, h5, h6 { font-size: 1rem; margin-top: 1.5em; }
   vertical-align: top;
   cursor: pointer;
 }
-/* A target for a finger, larger than the marker. */
-.fold::after { content: ""; position: absolute; inset: -9px -10px; }
+/* A target for a finger, larger than the marker, but not over the heading's text: a point
+   there would land in the button, and a selection started on the first word would jump
+   back to the end of the paragraph before. */
+.fold::after { content: ""; position: absolute; inset: -9px 0 -9px -10px; }
 .fold::before {
   content: "";
   position: absolute;

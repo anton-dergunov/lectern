@@ -248,6 +248,30 @@ def run(engine_name: str, playwright) -> bool:
         settle(page)
         heading = page.locator("#Part-2")
         under = [page.locator("#Part-2 + p"), page.locator("#c-cell-4")]
+        # A point on the first letter is in the heading's text, not in the fold button, or
+        # a selection started there jumps back to the paragraph before.
+        landing = heading.evaluate(
+            """h => {
+              const walker = document.createTreeWalker(h, NodeFilter.SHOW_TEXT);
+              let text;
+              while ((text = walker.nextNode()) && !text.data.trim()) {}
+              const range = document.createRange();
+              range.setStart(text, 0);
+              range.setEnd(text, 1);
+              const box = range.getBoundingClientRect();
+              return [0.5, 2].map(dx => {
+                const x = box.left + dx, y = box.top + box.height / 2;
+                const at = document.caretRangeFromPoint
+                  ? document.caretRangeFromPoint(x, y)
+                  : document.caretPositionFromPoint(x, y);
+                const node = at.startContainer || at.offsetNode;
+                return node.nodeType === Node.TEXT_NODE && h.contains(node);
+              });
+            }"""
+        )
+        results.append(
+            check("a heading's first letter can be selected from", all(landing), landing)
+        )
         top = "e => e.getBoundingClientRect().top"
         before = heading.evaluate(top)
         heading.locator(".fold").click()
