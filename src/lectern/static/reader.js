@@ -135,10 +135,31 @@
     return keptDatabase;
   }
 
+  // WebKit can leave an IndexedDB request unanswered, neither done nor failed, after a long
+  // time in the background, and every later one on the page with it. Waiting on that kept
+  // the trail from being written anywhere, so an answer that is late counts as a failure,
+  // and the next call opens the database afresh.
+  var KEPT_WAIT = 2000;
+
+  function inTime(promise) {
+    var timer = 0;
+    var late = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () {
+        keptDatabase = null;
+        reject(new DOMException("IndexedDB did not answer", "TimeoutError"));
+      }, KEPT_WAIT);
+    });
+    var done = function () {
+      clearTimeout(timer);
+    };
+    promise.then(done, done);
+    return Promise.race([promise, late]);
+  }
+
   // What is kept under `name`, or null.
   function kept(name) {
-    return openKept()
-      .then(function (database) {
+    return inTime(
+      openKept().then(function (database) {
         return new Promise(function (resolve, reject) {
           var request = database.transaction(KEPT).objectStore(KEPT).get(name);
           request.onsuccess = function () {
@@ -149,20 +170,21 @@
           };
         });
       })
-      .catch(function (error) {
-        keptTrouble = (error && error.name) || "failed";
-        try {
-          return JSON.parse(localStorage.getItem(name));
-        } catch (e) {
-          return null;
-        }
-      });
+    ).catch(function (error) {
+      keptTrouble = (error && error.name) || "failed";
+      try {
+        return JSON.parse(localStorage.getItem(name));
+      } catch (e) {
+        return null;
+      }
+    });
   }
 
-  // Settles once `value` is on the disk; null removes what was kept.
+  // Settles once `value` is on the disk, with whether IndexedDB has it; null removes what
+  // was kept.
   function keep(name, value) {
-    return openKept()
-      .then(function (database) {
+    return inTime(
+      openKept().then(function (database) {
         return new Promise(function (resolve, reject) {
           var change = database.transaction(KEPT, "readwrite");
           if (value == null) change.objectStore(KEPT).delete(name);
@@ -175,13 +197,40 @@
           };
         });
       })
-      .catch(function (error) {
+    ).then(
+      function () {
+        // A copy left in localStorage while IndexedDB was out of reach is out of date now,
+        // and would be read the next time it is. The trail's own copy is kept on purpose.
+        if (name !== LAST) {
+          try {
+            localStorage.removeItem(name);
+          } catch (e) {}
+        }
+        return true;
+      },
+      function (error) {
         keptTrouble = (error && error.name) || "failed";
         try {
           if (value == null) localStorage.removeItem(name);
           else localStorage.setItem(name, JSON.stringify(value));
         } catch (e) {}
+        return false;
+      }
+    );
+  }
+
+  // When the trail was last asked to be kept, and when IndexedDB last had it, so that the
+  // settings can tell writes that stopped from writes that were lost.
+  var KEPT_AT = "lectern:kept-at";
+
+  function noteKept(change) {
+    try {
+      var record = JSON.parse(localStorage.getItem(KEPT_AT)) || {};
+      Object.keys(change).forEach(function (key) {
+        record[key] = change[key];
       });
+      localStorage.setItem(KEPT_AT, JSON.stringify(record));
+    } catch (e) {}
   }
 
   // The trail is kept in both, stamped with when it was: IndexedDB can be out of reach for
@@ -192,7 +241,10 @@
       if (trail == null) localStorage.removeItem(LAST);
       else localStorage.setItem(LAST, JSON.stringify(trail));
     } catch (e) {}
-    return keep(LAST, trail);
+    noteKept({ asked: Date.now() });
+    return keep(LAST, trail).then(function (stored) {
+      noteKept(stored ? { done: Date.now(), trouble: "" } : { trouble: keptTrouble });
+    });
   }
 
   function stamp(trail) {
@@ -272,11 +324,21 @@
     if (!shown) {
       shown = document.createElement("details");
       shown.className = "reopenings";
-      shown.innerHTML = "<summary>Recent reopenings</summary><ol></ol>";
+      shown.innerHTML = '<summary>Recent reopenings</summary><p class="kept-at"></p><ol></ol>';
       var version = sheet.querySelector(".sheet-note.version");
       if (version) version.after(shown);
       else sheet.querySelector(".sheet-panel").append(shown);
     }
+    var record = null;
+    try {
+      record = JSON.parse(localStorage.getItem(KEPT_AT));
+    } catch (e) {}
+    shown.querySelector(".kept-at").textContent =
+      "Last kept: asked " +
+      when(record && record.asked) +
+      " · IndexedDB had it " +
+      when(record && record.done) +
+      (record && record.trouble ? " (" + record.trouble + ")" : "");
     var items = shown.querySelector("ol");
     items.textContent = "";
     list.forEach(function (entry) {
@@ -465,6 +527,7 @@
       // Nowhere to keep it: the chevron stays the way up to the folder.
       return;
     }
+    shownTrail = trail;
     if (served && standalone) keepOrGoBack(trail, tab, arrival);
 
     var previous = trail.list[trail.at - 1];
@@ -506,8 +569,12 @@
   // A kept trail newer than this tab's is where the reader was, and the app goes there. A
   // reload or a step back finds the two the same, since this tab wrote both.
   var leaving = false;
+  // The trail this page shows, and whether it has been found to be the newest and kept.
+  var shownTrail = null;
+  var decided = false;
 
   function keepOrGoBack(trail, tab, arrival) {
+    decided = false;
     keptLast().then(function (found) {
       var newest = found.trail;
       var there = trailEnd(newest);
@@ -517,10 +584,14 @@
         var how = (restored ? "restored" : "opened") + " (" + (arrival || "?") + ")";
         noteReopening(how, found, stale ? "went to " + there : "stayed", tab);
       }
-      if (!stale) return keepLast(trail);
+      if (!stale) {
+        decided = true;
+        return keepLast(trail);
+      }
       try {
         sessionStorage.setItem(TRAIL, JSON.stringify(newest));
       } catch (e) {
+        decided = true;
         return keepLast(trail);
       }
       // Marked as the start page marks it, so a page that hangs is not gone back to twice.
@@ -544,10 +615,22 @@
     var settled = function () {
       if (standalone && !leaving) keep(RESUMING, null);
     };
+    // Kept again on the way into the background, which is when a device may close the app:
+    // a write missed on arrival is not missed for good. Only once this page is known to be
+    // the newest, and never over a copy newer than its own.
+    var putAway = function () {
+      settled();
+      if (!served || !standalone || leaving || !decided || !shownTrail) return;
+      var stored = null;
+      try {
+        stored = JSON.parse(localStorage.getItem(LAST));
+      } catch (e) {}
+      if (stamp(stored) <= stamp(shownTrail)) keepLast(shownTrail);
+    };
     window.addEventListener("load", settled);
-    window.addEventListener("pagehide", settled);
+    window.addEventListener("pagehide", putAway);
     document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "hidden") settled();
+      if (document.visibilityState === "hidden") putAway();
     });
     // Says which way the trail is being walked. It is believed on arrival only if the page
     // at that step is the one that loaded, so a link that led nowhere leaves nothing behind.

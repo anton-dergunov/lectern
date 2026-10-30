@@ -1443,6 +1443,69 @@ def run(engine_name: str, playwright) -> bool:
                 )
             )
             again.close()
+            # Or neither answering nor failing, as WebKit can be after a long time away.
+            silent = "indexedDB.open = () => ({})"
+            again = launch(library, library.url("second.md"), script=silent)
+            results.append(
+                check(
+                    "with IndexedDB silent, the app still opens where it was",
+                    again.url == library.url("second.md"),
+                    again.url,
+                )
+            )
+            again.goto(library.url("first.md"))
+            again.wait_for_load_state("load")
+            last_end = """() => {
+              const trail = JSON.parse(localStorage.getItem('lectern:last'));
+              return trail ? trail.list[trail.at].url : '';
+            }"""
+            first_path = library.url("first.md").removeprefix(library.origin)
+            for _ in range(40):
+                if again.evaluate(last_end) == first_path:
+                    break
+                again.wait_for_timeout(100)
+            results.append(
+                check(
+                    "and keeps the page it goes on to",
+                    again.evaluate(last_end) == first_path,
+                    again.evaluate(last_end),
+                )
+            )
+            again.close()
+            again = launch(library, library.url("first.md"))
+            results.append(
+                check(
+                    "which is where it opens next time",
+                    again.url == library.url("first.md"),
+                    again.url,
+                )
+            )
+            again.wait_for_load_state("load")
+            settle(again)
+            # A write missed on arrival is made again on the way into the background...
+            again.evaluate(store, trail_to("second.md", saved=1))
+            hide = "() => window.dispatchEvent(new PageTransitionEvent('pagehide'))"
+            again.evaluate(hide)
+            results.append(
+                check(
+                    "putting the app away keeps its page again",
+                    again.evaluate(last_end) == first_path,
+                    again.evaluate(last_end),
+                )
+            )
+            # ...but never over a newer one.
+            newer = trail_to("second.md", saved=again.evaluate("Date.now()") + 1000)
+            again.evaluate(store, newer)
+            again.evaluate(hide)
+            results.append(
+                check(
+                    "and leaves a newer trail alone",
+                    again.evaluate(last_end) != first_path,
+                    again.evaluate(last_end),
+                )
+            )
+            again.evaluate(store, trail_to("first.md", saved=again.evaluate("Date.now()") + 2000))
+            put_away(again)
             again = home_screen.new_page()
             again.on("pageerror", lambda error: errors.append(str(error)))
             again.goto(library.url("first.md"))
