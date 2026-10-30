@@ -14,17 +14,29 @@ def test_pandas_table_loses_its_own_styling():
 
 def test_a_cell_of_several_words_is_kept_from_narrowing():
     long = "Graphiti's prompts, driven by local code"
-    html = str(clean_table_html(f"<table><tr><td>{long}</td><td>mem0</td></tr></table>"))
+    html = str(
+        clean_table_html(f"<table><tr><td>{long}</td><td>a reference to a paper</td></tr></table>")
+    )
 
     assert f'<td class="wide">{long}</td>' in html
-    assert "<td>mem0</td>" in html
+    assert '<td class="wide">a reference to a paper</td>' in html
+
+
+def test_a_short_cell_stays_on_one_line():
+    html = str(
+        clean_table_html("<table><tr><th>Read</th><td>Fig. 1, p. 3</td><td>mem0</td></tr></table>")
+    )
+
+    assert '<th class="short">Read</th>' in html
+    assert '<td class="short">Fig. 1, p. 3</td>' in html
+    assert '<td class="short">mem0</td>' in html
 
 
 def test_only_numeric_cells_are_marked():
     html = str(clean_table_html("<table><tr><td>-1,200.5</td><td>12%</td><td>v2</td></tr></table>"))
 
     assert html.count('class="num"') == 2
-    assert "<td>v2</td>" in html
+    assert '<td class="short">v2</td>' in html
 
 
 def test_stream_lines_wraps_each_line_once():

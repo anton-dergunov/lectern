@@ -65,7 +65,7 @@ Notebooks are shown as they were last saved, including ones you have not committ
 
 **Notebooks and markdown.** Prose is set in a comfortable column. Code is shown without the prompt gutter, followed by the outputs that were saved with the notebook. Math is typeset. Plots are shown from the pictures saved with them. Mermaid diagrams, from a ```` ```mermaid ```` block in markdown or a notebook output, are drawn in the reading theme's colours. Where an output needs a running notebook (a widget, or an interactive plot saved without a picture), a short note takes its place. Markdown files get the same style, and links between notebooks and documents work.
 
-**Tables** wrap their text to fit the column. A table with too many columns borrows what it lacks from the margins, and scrolls sideways only if it is wider than the screen.
+**Tables** wrap their text to fit the column, though a short entry such as "Fig. 1, p. 3" stays on one line. A table with too many columns borrows what it lacks from the margins, and scrolls sideways only if it is wider than the screen.
 
 **Long code and output.** A code cell longer than 30 lines starts folded until you ask for it (see [Choosing which code is shown](#choosing-which-code-is-shown)). Long printed output is cut to its first lines. Each code cell carries a small cell number, so you can find it again in Jupyter.
 

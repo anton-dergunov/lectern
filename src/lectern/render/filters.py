@@ -6,9 +6,10 @@ from bs4 import BeautifulSoup, Tag
 from markupsafe import Markup, escape
 from nbconvert.filters import ansi2html
 
-# A cell with more text than this is kept from narrowing below a few words when its table
-# is squeezed to fit; a table whose such columns cannot all fit scrolls sideways instead.
-WIDE_CELL = 24
+# A cell with no more text than this stays on one line ("Fig. 1, p. 3"); one with more is kept
+# from narrowing below a few words (8em, about as wide) when its table is squeezed to fit. A
+# table whose columns cannot all fit so scrolls sideways instead.
+SHORT_CELL = 16
 
 _NUMBER = re.compile(r"[-+−]?[\d,]*\.?\d+(?:[eE][-+]?\d+)?%?")
 _SPAN = re.compile(r"<span[^>]*>|</span>")
@@ -22,8 +23,8 @@ def _wrap_table(soup: BeautifulSoup, table: Tag) -> None:
         text = cell.get_text().strip()
         if cell.name == "td" and _NUMBER.fullmatch(text):
             cell["class"] = [*cell.get("class", []), "num"]
-        elif len(text) > WIDE_CELL:
-            cell["class"] = [*cell.get("class", []), "wide"]
+        else:
+            cell["class"] = [*cell.get("class", []), "short" if len(text) <= SHORT_CELL else "wide"]
     table.wrap(soup.new_tag("div", attrs={"class": "table-wrap"}))
 
 

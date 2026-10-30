@@ -466,8 +466,11 @@ thead th {
 tbody th { color: var(--fg-muted); font-weight: 400; }
 td.num { text-align: right; white-space: nowrap; }
 /* Text wraps, and the browser shares the column out by how much each column holds, so the
-   rows come out of a similar height. A cell of several words keeps a few of them to a line;
-   when those cells cannot all fit, the table scrolls sideways in its wrapper. */
+   rows come out of a similar height. That would leave a column of short entries ("Fig. 1,
+   p. 3") its longest word beside one of sentences, so a short entry stays on one line and a
+   longer one keeps a few words to a line; when those cells cannot all fit, the table scrolls
+   sideways in its wrapper. */
+th.short, td.short { white-space: nowrap; }
 th.wide, td.wide { min-width: 8em; }
 .cell.md table { font-size: 0.8rem; }
 /* A table that cannot fit even so is given room in the margins by reader.js, which keeps

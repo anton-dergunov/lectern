@@ -1042,7 +1042,12 @@ def run(engine_name: str, playwright) -> bool:
                 "|" + " h |" * n + "\n|" + "---|" * n + "\n" + ("|" + f" {phrase} |" * n + "\n") * 2
             )
 
-        tables = f"# Tables\n\n{few}\n\n{columns(6)}\n\n{columns(12)}\n"
+        # Like an answer that guides the reading: short references beside sentences.
+        reason = "It defines the five abilities and the seven question types of the benchmark. " * 3
+        refs = "| Read | Why |\n|---|---|\n" + "".join(
+            f"| {ref} | {reason} |\n" for ref in ["Fig. 1, p. 3", "§3.1–3.2, p. 4", "Table 1, p. 3"]
+        )
+        tables = f"# Tables\n\n{few}\n\n{columns(6)}\n\n{columns(12)}\n\n{refs}\n"
         Path(shelf, "tables.md").write_text(tables)
         with LocalServer(shelf) as library:
             walker = context.new_page()
@@ -1132,7 +1137,7 @@ def run(engine_name: str, playwright) -> bool:
                              left: box.left, right: innerWidth - box.right};
                    })"""
             )
-            few_wrap, some, many_wrap = wraps
+            few_wrap, some, many_wrap, refs_wrap = wraps
             results.append(
                 check(
                     "a table of a few columns wraps to fit, in the column",
@@ -1158,6 +1163,23 @@ def run(engine_name: str, playwright) -> bool:
             )
             wider = walker.evaluate("document.documentElement.scrollWidth > innerWidth")
             results.append(check("and the page itself does not scroll sideways", not wider))
+            # The lines of each cell's text: a cell is as tall as its row, so its height says
+            # nothing of its own.
+            lines = walker.evaluate(
+                """[...[...document.querySelectorAll('.table-wrap')].at(-1).querySelectorAll('tbody tr')]
+                   .map(row => [...row.cells].map(cell => {
+                     const range = document.createRange();
+                     range.selectNodeContents(cell);
+                     return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size;
+                   }))"""
+            )
+            results.append(
+                check(
+                    "a column of short references keeps each on one line beside the sentences",
+                    refs_wrap["fits"] and all(row[0] == 1 for row in lines),
+                    {"lines": lines, **refs_wrap},
+                )
+            )
             walker.close()
 
     # ---- A Home Screen app: finding words, and opening where it was closed ----
