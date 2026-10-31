@@ -176,3 +176,92 @@ def test_notes_as_markdown(tmp_path: Path, capsys):
     assert main(["notes", str(tmp_path / "plain.md")]) == 0
     assert "Nothing is marked." in capsys.readouterr().out
     assert main(["notes", str(tmp_path / "missing.ipynb")]) == 1
+
+
+# ---- Authors, and notes added from the command line ----
+
+
+def test_a_note_can_say_who_wrote_it(doc: Path):
+    kept = notes.save(doc, [note(author="Claude"), note(id="b2")], "")
+    assert kept["notes"][0]["author"] == "Claude"
+    # A note without a name is written as before, with no empty field.
+    assert "author" not in kept["notes"][1]
+    with pytest.raises(notes.NotesError):
+        notes.save(doc, [note(author="x" * 65)], kept["rev"])
+
+
+@pytest.fixture
+def page(tmp_path: Path) -> Path:
+    path = tmp_path / "post.md"
+    path.write_text(
+        "# A post\n\nThe **first** idea is plain. A [link](https://example.com) here.\n\n"
+        "Some words twice. Some words twice.\n"
+    )
+    return path
+
+
+def test_added_notes_are_anchored_as_the_page_shows_the_text(page: Path):
+    text, spans = notes.page_text(page)
+    added, refused = notes.add(
+        page,
+        [
+            {"quote": "The first idea is plain", "note": "markup is not part of the quote"},
+            {"quote": "A link here", "note": "nor is a link's address"},
+        ],
+        "Claude",
+    )
+    assert refused == []
+    first, second = added
+    assert first["author"] == "Claude" and first["note"] == "markup is not part of the quote"
+    assert text[spans[first["cell"]][0] + first["start"] :].startswith("The first idea is plain")
+    assert text.endswith(second["suffix"]) or second["suffix"] in text
+    assert first["id"] != second["id"] and first["created"].endswith("Z")
+    assert notes.load(page)["notes"] == added
+
+
+def test_quotes_not_found_once_are_refused(page: Path):
+    added, refused = notes.add(
+        page,
+        [
+            {"quote": "not in the post", "note": ""},
+            {"quote": "Some words twice", "note": ""},
+            {"x": 1},
+        ],
+        "Claude",
+    )
+    assert added == [] and not notes.notes_path(page).exists()
+    reasons = [reason for _, reason in refused]
+    assert (
+        "not in the text" in reasons[0]
+        and "appears 2 times" in reasons[1]
+        and "quote" in reasons[2]
+    )
+
+
+def test_one_authors_notes_can_be_cleared(page: Path):
+    notes.save(page, [note(cell="", quote="plain"), note(id="b2", cell="", quote="link")], "")
+    notes.add(page, [{"quote": "The first idea", "note": "review"}], "Claude")
+    assert notes.clear(page, "Claude") == 1
+    assert [n["id"] for n in notes.load(page)["notes"]] == ["a1", "b2"]
+    assert notes.clear(page, "Claude") == 0
+
+
+def test_notes_by_author_on_the_command_line(page: Path, tmp_path: Path, capsys):
+    review = tmp_path / "review.json"
+    review.write_text(json.dumps([{"quote": "The first idea", "note": "Open with the problem."}]))
+    assert main(["notes", "add", str(page), "--author", "Claude", "--from", str(review)]) == 0
+    assert "Added 1 note by Claude" in capsys.readouterr().out
+
+    review.write_text(json.dumps([{"quote": "absent words", "note": "x"}]))
+    assert main(["notes", "add", str(page), "--author", "Claude", "--from", str(review)]) == 1
+    assert "not added: 'absent words'" in capsys.readouterr().err
+
+    assert main(["notes", str(page), "--author", "Claude"]) == 0
+    shown = capsys.readouterr().out
+    assert "> The first idea" in shown and "**Claude:** Open with the problem." in shown
+    assert main(["notes", str(page), "--author", "Anton"]) == 0
+    assert "Nothing is marked." in capsys.readouterr().out
+
+    assert main(["notes", "add", str(page)]) == 1  # no --author
+    assert main(["notes", "clear", str(page), "--author", "Claude"]) == 0
+    assert "Removed 1 note by Claude" in capsys.readouterr().out

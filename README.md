@@ -40,7 +40,8 @@ Lectern does both. It turns notebooks and markdown into clean, readable pages. I
 **Highlights and notes**
 - Turn on the pen, select a passage, and it is highlighted. Tap it to write a note.
 - Marks are kept on your computer beside the document, so they are the same on every device, and you can commit them with the repository.
-- `lectern notes` prints everything you marked as markdown, ready for your own notes.
+- Put your name on your notes, and see notes by someone else in their own colour, with a filter for whose notes are listed.
+- `lectern notes` prints everything you marked as markdown, ready for your own notes, and `lectern notes add` brings in notes written elsewhere, such as a review.
 
 **Like an app on your tablet**
 - Add it to the Home Screen: full screen, no browser bars, and it reopens on the page you were reading.

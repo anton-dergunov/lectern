@@ -1016,6 +1016,85 @@ def run(engine_name: str, playwright) -> bool:
                 settle(marker)
                 cleared = not notes_file.exists() and not listed.is_visible()
                 results.append(check("with the last mark gone, so is the file", cleared, kept()))
+
+                # Names on notes: this device's own, and a review added by someone else.
+                marker.get_by_role("button", name="Reading settings").click()
+                marker.get_by_role("button", name="Solarized").click()
+                field = marker.get_by_label("Your name on notes")
+                field.fill("Anton")
+                marker.locator("#settings").get_by_role("button", name="Done").click()
+                named = marker.evaluate("window.lectern.prefs.author") == "Anton"
+                results.append(check("the name on notes is kept in the settings", named))
+                review = {
+                    "id": "review",
+                    "cell": "c-no-longer",
+                    "start": 0,
+                    "quote": "A long read",
+                    "prefix": "",
+                    "suffix": "",
+                    "note": "Open with the problem.",
+                    "author": "Claude",
+                }
+                mine = {
+                    **review,
+                    "id": "mine",
+                    "quote": "An opening paragraph",
+                    "note": "",
+                    "author": "Anton",
+                }
+                notes_file.write_text(json.dumps({"version": 1, "notes": [review, mine]}))
+                marker.reload()
+                settle(marker)
+                sizes = marker.evaluate(
+                    """() => ['lectern-mark', 'lectern-note', 'lectern-mark-other', 'lectern-note-other']
+                             .map((name) => CSS.highlights.get(name).size)"""
+                )
+                results.append(
+                    check(
+                        "someone else's notes are painted apart from one's own",
+                        sizes == [1, 0, 0, 1],
+                        sizes,
+                    )
+                )
+                marker.evaluate("window.scrollTo(0, 0)")
+                settle(marker)
+                spot = marker.evaluate(
+                    """() => { const box = [...CSS.highlights.get('lectern-note-other')][0].getClientRects()[0];
+                               return {x: box.left + box.width / 2, y: box.top + box.height / 2}; }"""
+                )
+                marker.mouse.click(spot["x"], spot["y"])
+                who = pop.locator(".mark-who")
+                says = who.is_visible() and who.text_content() == "Claude"
+                results.append(check("a tap on it shows whose note it is", says))
+                marker.mouse.click(700, 600)
+                listed.click()
+                sheet = marker.locator("#notes")
+                chips = sheet.locator(".notes-filter button").all_text_contents()
+                filtered = chips == ["Everyone", "Yours", "Claude"]
+                sheet.get_by_role("button", name="Claude").click()
+                only = sheet.locator(".noted").count() == 1
+                only = only and sheet.locator(".noted-who").first.text_content() == "Claude"
+                sheet.get_by_role("button", name="Yours").click()
+                only = only and sheet.locator(".noted").count() == 1
+                only = (
+                    only
+                    and sheet.locator(".noted q").first.text_content() == "An opening paragraph"
+                )
+                results.append(
+                    check("the list can show one person's notes", filtered and only, chips)
+                )
+                sheet.get_by_role("button", name="Done").click()
+                pen.click()
+                marker.evaluate(SELECT, ["c-cell-5", "prose to read", 1])
+                marker.wait_for_timeout(1500)
+                stamped = [
+                    note.get("author") for note in kept() if note["id"] not in ("review", "mine")
+                ]
+                results.append(
+                    check("a new mark carries this device's name", stamped == ["Anton"], stamped)
+                )
+                pen.click()
+                notes_file.unlink()
         marker.close()
 
     # ---- Back and forward between documents ----

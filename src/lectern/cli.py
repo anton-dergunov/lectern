@@ -158,7 +158,38 @@ def _notes(args: argparse.Namespace) -> int:
     from . import notes
     from .paths import DOC_SUFFIXES
 
-    path = Path(args.path).expanduser()
+    words = list(args.words)
+    action = words.pop(0) if words and words[0] in ("add", "clear") and len(words) == 2 else "show"
+    if len(words) > 1:
+        return _fail("give one PATH, or `add PATH` or `clear PATH`")
+    path = Path(words[0] if words else ".").expanduser()
+
+    if action != "show":
+        if not (path.is_file() and path.suffix.lower() in DOC_SUFFIXES):
+            return _fail(f"{path} is not a notebook or a markdown file")
+        if not args.author:
+            return _fail(f"`lectern notes {action}` needs --author NAME")
+        if action == "clear":
+            removed = notes.clear(path, args.author)
+            print(f"Removed {_plural(removed, 'note')} by {args.author} from {path.name}.")
+            return 0
+        source = sys.stdin if args.source in (None, "-") else open(args.source, encoding="utf-8")
+        with source:
+            try:
+                entries = json.load(source)
+            except ValueError as error:
+                return _fail(f"the notes to add are not JSON: {error}")
+        if isinstance(entries, dict):
+            entries = entries.get("notes", [])
+        if not isinstance(entries, list):
+            return _fail('the notes to add must be a list of {"quote": …, "note": …}')
+        added, refused = notes.add(path, entries, args.author)
+        print(f"Added {_plural(len(added), 'note')} by {args.author} to {path.name}.")
+        for entry, reason in refused:
+            quote = entry.get("quote", "") if isinstance(entry, dict) else entry
+            print(f"  not added: {str(quote)[:80]!r}: {reason}", file=sys.stderr)
+        return 1 if refused else 0
+
     if path.is_dir():
         documents = [doc for doc in library.discover(path) if notes.notes_path(doc).exists()]
         if not documents:
@@ -168,7 +199,7 @@ def _notes(args: argparse.Namespace) -> int:
         documents = [path]
     else:
         return _fail(f"{path} is not a notebook, a markdown file or a folder")
-    print("\n".join(notes.to_markdown(doc) for doc in documents), end="")
+    print("\n".join(notes.to_markdown(doc, args.author) for doc in documents), end="")
     return 0
 
 
@@ -340,12 +371,23 @@ def _parser() -> argparse.ArgumentParser:
 
     noted = commands.add_parser(
         "notes",
-        help="print the highlights and notes made on a document, as markdown",
+        usage="lectern notes [PATH] [--author NAME]\n"
+        "       lectern notes add DOC --author NAME [--from FILE]\n"
+        "       lectern notes clear DOC --author NAME",
+        help="print the highlights and notes made on a document, or add or clear some",
         description="Print what was marked while reading PATH: each passage under its "
-        "heading and cell number, with the remark made on it. For a folder, every "
-        "document in it that has notes.",
+        "heading and cell number, with the remark made on it and who made it. For a "
+        "folder, every document in it that has notes. `add` keeps notes written "
+        'elsewhere, such as a review: a JSON list of {"quote": …, "note": …}, each '
+        "quote found in the text as the page shows it. `clear` removes one author's notes.",
     )
-    noted.add_argument("path", nargs="?", default=".", metavar="PATH", help="default: .")
+    noted.add_argument("words", nargs="*", metavar="PATH", help="default: .")
+    noted.add_argument(
+        "--author", help="only this author's notes; for add and clear, whose they are"
+    )
+    noted.add_argument(
+        "--from", dest="source", metavar="FILE", help="for add: the notes, as JSON; default: stdin"
+    )
     noted.set_defaults(run=_notes)
 
     agent = commands.add_parser(

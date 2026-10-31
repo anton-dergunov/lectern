@@ -18,6 +18,8 @@
     // The two below only apply in the e-ink theme.
     ink: "mono",
     noBar: false,
+    // The name written on notes made on this device; none by default.
+    author: "",
   };
   // The page background of each theme, for the browser and status bar around the page.
   var BAR_COLORS = {
@@ -75,6 +77,7 @@
     if (["mono", "colour"].indexOf(prefs.ink) < 0) prefs.ink = DEFAULTS.ink;
     if (["overview", "files"].indexOf(prefs.listing) < 0) prefs.listing = DEFAULTS.listing;
     prefs.size = Math.min(SIZE.max, Math.max(SIZE.min, Math.round(prefs.size)));
+    prefs.author = prefs.author.trim().slice(0, 64);
     return prefs;
   }
 

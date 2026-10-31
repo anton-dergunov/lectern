@@ -3,7 +3,11 @@
 analysis.ipynb  ->  analysis.notes.json
 
     {"version": 1, "notes": [{"id": …, "cell": "c-…", "start": 12, "quote": "the words",
-      "prefix": "…", "suffix": "…", "note": "a remark", "created": …, "updated": …}]}
+      "prefix": "…", "suffix": "…", "note": "a remark", "author": "Anton",
+      "created": …, "updated": …}]}
+
+`author` is optional: notes made before it existed, or by a reader who has not given a name,
+have none.
 
 This is the one thing lectern writes on a device's say-so. What is written is never what
 was sent: the notes are checked field by field and the file is composed here, at a path
@@ -14,8 +18,11 @@ one but notes.
 import hashlib
 import json
 import os
+import random
 import re
 import threading
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 VERSION = 1
@@ -29,6 +36,7 @@ TEXT = {
     "prefix": 64,
     "suffix": 64,
     "note": 10000,
+    "author": 64,
     "created": 40,
     "updated": 40,
 }
@@ -105,6 +113,8 @@ def _checked(notes: object) -> list[dict]:
         if not clean["quote"].strip():
             raise NotesError("a note needs the text it is about")
         seen.add(clean["id"])
+        if not clean["author"]:
+            del clean["author"]  # files stay as they were for notes without one
         checked.append({"id": clean.pop("id"), "cell": clean.pop("cell"), "start": start, **clean})
     return checked
 
@@ -132,6 +142,154 @@ def save(doc: Path, notes: object, rev: str) -> dict:
         scratch.write_text(text + "\n", encoding="utf-8")
         os.replace(scratch, path)
         return _read(path)
+
+
+# ---- Added from the command line, by name of their author ----
+
+# What the reader leaves out of the text it marks (`NOT_MARKED` in static/reader.js).
+_NOT_MARKED_TAGS = {"button", "summary"}
+_NOT_MARKED_CLASSES = {"cell-n", "stream-tools", "anchor-link", "katex-mathml", "diagram"}
+CONTEXT = 32  # characters kept on each side of a quote, as the reader keeps
+
+
+def page_text(doc: Path) -> tuple[str, dict[str, tuple[int, int]]]:
+    """The document's text as the reader builds it, and where each cell's text lies in it.
+
+    The reader joins the text of every cell on the page, leaving out buttons, cell numbers
+    and diagrams; notes are anchored in that text. This rebuilds it from the same rendered
+    page, so that a quote can be found before it is saved. Formulas are typeset on the
+    device, so text inside one may not match.
+    """
+    from bs4 import BeautifulSoup, Comment, NavigableString
+
+    from .render import render_document
+
+    soup = BeautifulSoup(render_document(doc).fragment, "html.parser")
+    pieces: list[str] = []
+    spans: dict[str, tuple[int, int]] = {}
+    length = 0
+
+    def left_out(node) -> bool:
+        for parent in node.parents:
+            if parent.name in _NOT_MARKED_TAGS:
+                return True
+            if _NOT_MARKED_CLASSES & set(parent.get("class") or []):
+                return True
+        return False
+
+    for cell in soup.find_all(recursive=False):
+        if "cell" not in (cell.get("class") or []):
+            continue
+        start = length
+        for node in cell.descendants:
+            if not isinstance(node, NavigableString) or isinstance(node, Comment):
+                continue
+            if left_out(node):
+                continue
+            pieces.append(str(node))
+            length += len(node)
+        spans.setdefault(cell.get("id", ""), (start, length))
+    return "".join(pieces), spans
+
+
+def _new_id() -> str:
+    # As the reader makes them: the time and a few random letters, in base 36.
+    def base36(n: int) -> str:
+        digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+        out = ""
+        while n:
+            n, r = divmod(n, 36)
+            out = digits[r] + out
+        return out or "0"
+
+    return base36(int(time.time() * 1000)) + base36(random.getrandbits(40))[:6]
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def anchor(text: str, spans: dict[str, tuple[int, int]], quote: str) -> dict | str:
+    """Where a quote is in the page text, as a note records it, or why it cannot be kept."""
+    quote = quote.strip()
+    if not quote:
+        return "the quote is empty"
+    found = []
+    at = text.find(quote)
+    while at >= 0:
+        found.append(at)
+        at = text.find(quote, at + 1)
+    if not found:
+        return "not in the text as the page shows it (quote the words as read, without markdown)"
+    if len(found) > 1:
+        return f"appears {len(found)} times; quote more words so that it is found once"
+    at = found[0]
+    cell = next((cid for cid, (s, e) in spans.items() if s <= at < e), "")
+    start = at - spans.get(cell, (0, 0))[0]
+    return {
+        "cell": cell,
+        "start": start,
+        "quote": quote,
+        "prefix": text[max(0, at - CONTEXT) : at],
+        "suffix": text[at + len(quote) : at + len(quote) + CONTEXT],
+    }
+
+
+def add(doc: Path, entries: list[dict], author: str) -> tuple[list[dict], list[tuple[dict, str]]]:
+    """Add notes by `author` to a document: each entry a {"quote", "note"}.
+
+    Returns the notes added and the entries left out, each with the reason. Nothing is
+    saved if no entry can be kept.
+    """
+    text, spans = page_text(doc)
+    added, refused = [], []
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("quote"), str):
+            refused.append((entry, "each entry needs a quote"))
+            continue
+        place = anchor(text, spans, entry["quote"])
+        if isinstance(place, str):
+            refused.append((entry, place))
+            continue
+        now = _now()
+        added.append(
+            {
+                "id": _new_id(),
+                **place,
+                "note": str(entry.get("note", "")),
+                "author": author,
+                "created": now,
+                "updated": now,
+            }
+        )
+    if added:
+        _replace(doc, lambda notes: notes + added)
+    return added, refused
+
+
+def clear(doc: Path, author: str) -> int:
+    """Remove every note by `author`; returns how many there were."""
+    removed = 0
+
+    def without(notes: list[dict]) -> list[dict]:
+        nonlocal removed
+        kept = [note for note in notes if note.get("author", "") != author]
+        removed = len(notes) - len(kept)
+        return kept
+
+    _replace(doc, without)
+    return removed
+
+
+def _replace(doc: Path, change) -> dict:
+    """Apply `change` to the notes on disk, trying again if a device saves in between."""
+    for _ in range(3):
+        current = load(doc)
+        try:
+            return save(doc, change(current["notes"]), current["rev"])
+        except Stale:
+            continue
+    raise NotesError("the notes kept changing while they were being saved; try again")
 
 
 # ---- As markdown, to read on the laptop ----
@@ -186,9 +344,13 @@ def _quoted(text: str) -> str:
     return "\n".join(f"> {line}".rstrip() for line in text.split("\n"))
 
 
-def to_markdown(doc: Path) -> str:
-    """The document's notes in reading order, each under its heading and cell number."""
+def to_markdown(doc: Path, author: str | None = None) -> str:
+    """The document's notes in reading order, each under its heading and cell number.
+
+    With `author`, only that author's notes ("" for notes with none)."""
     notes = load(doc)["notes"]
+    if author is not None:
+        notes = [note for note in notes if note.get("author", "") == author]
     places = _places(doc)
     lines = [f"# Notes on {doc.name}", ""]
     if not notes:
@@ -197,8 +359,11 @@ def to_markdown(doc: Path) -> str:
     def entry(note: dict, label: str) -> list[str]:
         out = [f"Cell {label}:", ""] if label else []
         out += [_quoted(note.get("quote", "")), ""]
+        who = f"**{note['author']}:** " if note.get("author") else ""
         if note.get("note"):
-            out += [note["note"], ""]
+            out += [who + note["note"], ""]
+        elif who:
+            out += [f"*Marked by {note['author']}*", ""]
         return out
 
     placed = [note for note in notes if note.get("cell", "") in places]

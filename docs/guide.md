@@ -100,7 +100,21 @@ lectern notes notebooks/analysis.ipynb    # what was marked, as markdown
 lectern notes                             # the same for every document under this folder
 ```
 
-Each passage is printed under its heading, with the cell number for code, followed by the note made on it.
+Each passage is printed under its heading, with the cell number for code, followed by the note made on it and, when it has one, the name of who made it.
+
+### Whose notes they are
+
+Give your name under **Your name on notes** in the reading settings, and every note you make on that device carries it. Notes by anyone else are highlighted in a colour of their own, a tap on one shows whose it is, and the list of notes lets you show everyone's, only yours, or one other person's.
+
+Notes can also come from the command line, for example a review written by someone else or by a tool. Write them as a JSON list, each with the words it is about and the remark, and add them under a name:
+
+```sh
+lectern notes add post.md --author Claude --from review.json   # [{"quote": "…", "note": "…"}, …]
+lectern notes post.md --author Claude                           # only those notes, as markdown
+lectern notes clear post.md --author Claude                     # remove them all again
+```
+
+Each quote has to be words as the page shows them (no markdown), and found exactly once in the document; `lectern notes add` says which quotes it could not place, and adds the rest.
 
 Saving a mark is the one thing a device can change on your computer, and anyone who can reach lectern can add or delete marks. To keep lectern to reading only, start it with `lectern serve --no-notes`, or put `notes = false` in `~/.config/lectern/config.toml`. Sites made with `lectern build` have no marking and never include anyone's notes.
 

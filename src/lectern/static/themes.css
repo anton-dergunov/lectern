@@ -21,6 +21,8 @@
   --accent: #cb4b16;
   --mark: rgb(181 137 0 / 0.28);
   --mark-line: #b58900;
+  --mark-other: rgb(108 113 196 / 0.22);
+  --mark-other-line: #6c71c4;
   --find: rgb(38 139 210 / 0.22);
   --find-current: rgb(203 75 22 / 0.45);
   --code-fg: #586e75;
@@ -56,6 +58,8 @@
   --accent: #cb4b16;
   --mark: rgb(181 137 0 / 0.38);
   --mark-line: #b58900;
+  --mark-other: rgb(108 113 196 / 0.34);
+  --mark-other-line: #8b8fd6;
   --find: rgb(38 139 210 / 0.35);
   --find-current: rgb(203 75 22 / 0.65);
   --code-fg: #93a1a1;
@@ -83,6 +87,8 @@
   --accent: #a4380f;
   --mark: #fff3a3;
   --mark-line: #b08a00;
+  --mark-other: #e4defc;
+  --mark-other-line: #6b5bc4;
   --find: #cfe4ff;
   --find-current: #ffb066;
   --code-fg: #222222;
@@ -117,6 +123,8 @@
   --accent: #ffa657;
   --mark: rgb(255 214 10 / 0.3);
   --mark-line: #ffd60a;
+  --mark-other: rgb(160 140 255 / 0.3);
+  --mark-other-line: #b4a6ff;
   --find: rgb(10 132 255 / 0.4);
   --find-current: rgb(255 159 10 / 0.7);
   --code-fg: #dcdcdc;
@@ -154,6 +162,8 @@
   --accent: #000000;
   --mark: transparent;
   --mark-line: #000000;
+  --mark-other: transparent;
+  --mark-other-line: #000000;
   --find: transparent;
   --find-current: transparent;
   --code-fg: #000000;
@@ -189,6 +199,8 @@
   --err: #b00000;
   --mark: #ffe14d;
   --mark-line: #000000;
+  --mark-other: #c9bdff;
+  --mark-other-line: #000000;
   --find: #a8d4ff;
   --find-current: #ffb066;
 

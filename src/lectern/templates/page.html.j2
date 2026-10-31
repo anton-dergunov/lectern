@@ -148,6 +148,14 @@
         <button type="button" data-pref="follow" data-value="true">Reload automatically</button>
       </div>
     </section>
+{% if not static_site %}
+    <section class="setting" data-author-setting hidden>
+      <h3><label for="author-name">Your name on notes</label></h3>
+      <input class="name-field" id="author-name" type="text" data-author maxlength="64"
+        autocomplete="name" autocapitalize="words" spellcheck="false" enterkeyhint="done"
+        placeholder="Shown beside the notes you write">
+    </section>
+{% endif %}
     <p class="sheet-note">Saved on this device.</p>
 {% if not static_site %}
     <p class="sheet-note version">Lectern {{ lectern_version }} · {{ assets_hash }}</p>

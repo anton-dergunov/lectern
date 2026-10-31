@@ -799,6 +799,11 @@
     settings.querySelector("[data-size-value]").textContent = prefs.size + " px";
     settings.querySelector("[data-size-step='-1']").disabled = prefs.size <= window.lectern.size.min;
     settings.querySelector("[data-size-step='1']").disabled = prefs.size >= window.lectern.size.max;
+    var author = settings.querySelector("[data-author]");
+    if (author) {
+      settings.querySelector("[data-author-setting]").hidden = !canMark;
+      if (document.activeElement !== author) author.value = prefs.author;
+    }
   }
 
   // Changing the text size or column width reflows the page; keep the same place in view.
@@ -810,6 +815,15 @@
   }
 
   if (settings) {
+    // The name is kept as it is typed, and the marks are painted again for it.
+    settings.addEventListener("input", function (event) {
+      if (!event.target.matches("[data-author]")) return;
+      window.lectern.set("author", event.target.value.trim().slice(0, 64));
+      document.dispatchEvent(new Event("lectern:author"));
+    });
+    settings.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && event.target.matches("[data-author]")) event.target.blur();
+    });
     settings.addEventListener("click", function (event) {
       var button = event.target.closest("button");
       if (!button) return;
@@ -1726,8 +1740,17 @@
     // highlight, but not those of a highlight replaced by another, so a removed mark stayed.
     var plain = new Highlight();
     var noted = new Highlight();
+    // Marks by someone else (another name, or a review added from the command line).
+    var plainOther = new Highlight();
+    var notedOther = new Highlight();
     CSS.highlights.set("lectern-mark", plain);
     CSS.highlights.set("lectern-note", noted);
+    CSS.highlights.set("lectern-mark-other", plainOther);
+    CSS.highlights.set("lectern-note-other", notedOther);
+    // A mark is someone else's when it carries a name that is not this device's.
+    var byOther = function (mark) {
+      return Boolean(mark.author) && mark.author !== prefs.author;
+    };
 
     // Safari on the iPad can leave a hairline where the top of a removed mark was: it
     // repaints the words, and the tint was a little taller than they are. Having the block
@@ -1748,6 +1771,8 @@
       var before = painted;
       plain.clear();
       noted.clear();
+      plainOther.clear();
+      notedOther.clear();
       painted = [];
       if (marks.length) {
         var model = textModel();
@@ -1755,7 +1780,8 @@
           var at = locate(model, mark);
           if (at < 0) return;
           var range = rangeFor(model, at, at + mark.quote.length);
-          (mark.note ? noted : plain).add(range);
+          var other = byOther(mark);
+          (mark.note ? (other ? notedOther : noted) : other ? plainOther : plain).add(range);
           painted.push({ mark: mark, range: range, at: at });
         });
         painted.sort(function (a, b) {
@@ -1772,6 +1798,10 @@
       });
       listButton.hidden = !marks.length;
     };
+    // A new name on this device changes whose marks are someone else's.
+    document.addEventListener("lectern:author", function () {
+      paint();
+    });
 
     // ---- Keeping them ----
     // The whole list is sent each time, with the version it was changed from. If another
@@ -1858,6 +1888,7 @@
       var now = new Date().toISOString();
       found.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       found.note = note || "";
+      if (prefs.author) found.author = prefs.author;
       found.created = now;
       found.updated = now;
       marksChanged(found);
@@ -1899,8 +1930,14 @@
       pop.hidden = true;
     };
 
-    var showPop = function (box, text, actions) {
+    var showPop = function (box, text, actions, who) {
       pop.textContent = "";
+      if (who) {
+        var name = document.createElement("p");
+        name.className = "mark-who";
+        name.textContent = who;
+        pop.appendChild(name);
+      }
       if (text) {
         var words = document.createElement("p");
         words.textContent = text;
@@ -2019,7 +2056,10 @@
 
     var showMark = function (hit) {
       var mark = hit.mark;
-      showPop(hit.box, mark.note, [
+      showPop(
+        hit.box,
+        mark.note,
+        [
         {
           label: mark.note ? "Edit note" : "Add note",
           act: function () {
@@ -2034,7 +2074,9 @@
             removeMark(mark);
           },
         },
-      ]);
+        ],
+        byOther(mark) ? mark.author : ""
+      );
     };
 
     var dismissed = null;
@@ -2083,7 +2125,7 @@
 
     var listEntry = function (mark, range) {
       var entry = document.createElement(range ? "a" : "div");
-      entry.className = "noted";
+      entry.className = byOther(mark) ? "noted noted-other" : "noted";
       var quote = document.createElement("q");
       quote.textContent = mark.quote.length > 160 ? mark.quote.slice(0, 160) + "…" : mark.quote;
       entry.appendChild(quote);
@@ -2091,6 +2133,12 @@
         var note = document.createElement("span");
         note.textContent = mark.note;
         entry.appendChild(note);
+      }
+      if (mark.author) {
+        var who = document.createElement("small");
+        who.className = "noted-who";
+        who.textContent = mark.author === prefs.author ? "You" : mark.author;
+        entry.appendChild(who);
       }
       if (range) {
         entry.href = "#";
@@ -2110,16 +2158,50 @@
       return entry;
     };
 
+    // Whose notes the list shows, when there are notes by more than one person: null for
+    // everyone's, "" for this device's own (with no name, or this device's name).
+    var listAuthor = null;
+    var ownerOf = function (mark) {
+      return byOther(mark) ? mark.author : "";
+    };
     var showList = function () {
       var body = list.querySelector(".notes");
       body.textContent = "";
+      var owners = [];
+      marks.forEach(function (mark) {
+        if (owners.indexOf(ownerOf(mark)) < 0) owners.push(ownerOf(mark));
+      });
+      if (owners.indexOf(listAuthor) < 0) listAuthor = null;
+      if (owners.length > 1) {
+        owners.sort(function (a, b) {
+          return a === "" ? -1 : b === "" ? 1 : a.localeCompare(b);
+        });
+        var choice = document.createElement("div");
+        choice.className = "choice notes-filter";
+        [null].concat(owners).forEach(function (owner) {
+          var button = toolButton(owner === null ? "Everyone" : owner === "" ? "Yours" : owner);
+          button.setAttribute("aria-pressed", owner === listAuthor);
+          button.addEventListener("click", function () {
+            listAuthor = owner;
+            showList();
+          });
+          choice.appendChild(button);
+        });
+        body.appendChild(choice);
+      }
+      var shown = function (mark) {
+        return listAuthor === null || ownerOf(mark) === listAuthor;
+      };
       painted.forEach(function (found) {
-        body.appendChild(listEntry(found.mark, found.range));
+        if (shown(found.mark)) body.appendChild(listEntry(found.mark, found.range));
       });
       var lost = marks.filter(function (mark) {
-        return !painted.some(function (found) {
-          return found.mark === mark;
-        });
+        return (
+          shown(mark) &&
+          !painted.some(function (found) {
+            return found.mark === mark;
+          })
+        );
       });
       if (lost.length) {
         var heading = document.createElement("h3");

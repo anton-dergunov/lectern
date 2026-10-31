@@ -747,6 +747,14 @@ dialog.sheet {
    a link's, and one with a note has two. */
 [data-theme="eink"] .doc ::highlight(lectern-mark) { text-decoration: underline 3px var(--mark-line); }
 [data-theme="eink"] .doc ::highlight(lectern-note) { text-decoration: underline double 3px var(--mark-line); }
+/* Someone else's marks: the same, in a colour of their own; on black-only e-ink, dotted. */
+.doc ::highlight(lectern-mark-other) { background-color: var(--mark-other); }
+.doc ::highlight(lectern-note-other) {
+  background-color: var(--mark-other);
+  text-decoration: underline 2px var(--mark-other-line);
+}
+[data-theme="eink"] .doc ::highlight(lectern-mark-other) { text-decoration: underline dotted 3px var(--mark-other-line); }
+[data-theme="eink"] .doc ::highlight(lectern-note-other) { text-decoration: underline dotted 3px var(--mark-other-line); }
 /* What was looked for with the find field, and the one of them the page has gone to. */
 .doc ::highlight(lectern-find) { background-color: var(--find); }
 .doc ::highlight(lectern-find-current) { background-color: var(--find-current); }
@@ -823,6 +831,23 @@ dialog.sheet {
 .noted q { display: block; quotes: none; }
 .noted span { display: block; margin-top: 0.3rem; color: var(--fg-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
 .noted button { min-height: 32px; margin-top: 0.2rem; padding: 0; }
+.noted-other { border-left-color: var(--mark-other-line); }
+.noted-who { display: block; margin-top: 0.3rem; font: 400 0.74rem/1.3 var(--font-ui); color: var(--fg-muted); }
+.notes-filter { margin: 0.2rem 0 0.9rem; }
+.mark-pop .mark-who { margin: 0 0 0.3rem; font: 600 0.74rem/1.3 var(--font-ui); color: var(--fg-muted); }
+/* The name written on notes, in the reading settings. */
+.name-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg-strong);
+  font: 400 1rem/1.3 var(--font-ui);
+}
+.name-field:focus { border-color: var(--link); outline: none; }
 
 dialog.note-editor {
   width: min(30rem, calc(100vw - 24px));
