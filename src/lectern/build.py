@@ -32,7 +32,7 @@ class SiteOptions:
     # part of the site (scripts, data) go to the repository instead of nowhere.
     repo_url: str = ""
     branch: str = "main"
-    theme: str = "solarized"
+    theme: str = "plain"
     # Which markdown files become pages: those a built page links to, every one, or none.
     # A repository's markdown is mostly not written for the site's readers (README, notes
     # for tools), so publishing all of it has to be asked for.
@@ -78,7 +78,7 @@ def load_options(src: Path, flags: dict, environ: dict[str, str] | None = None) 
         description=pick("description", ""),
         repo_url=pick("repo_url", f"https://github.com/{repository}" if repository else ""),
         branch=pick("branch", environ.get("GITHUB_REF_NAME") or "main"),
-        theme=pick("theme", "solarized"),
+        theme=pick("theme", "plain"),
         markdown=pick("markdown", "linked"),
         include=list(pick("include", [])),
         exclude=list(pick("exclude", [])),

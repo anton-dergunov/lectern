@@ -229,7 +229,7 @@ def test_options_come_from_flags_then_the_file_then_the_environment(src: Path):
     environ = {"GITHUB_REPOSITORY": "me/from-env", "GITHUB_REF_NAME": "release"}
 
     bare = load_options(src, {}, {})
-    assert (bare.title, bare.repo_url, bare.branch, bare.theme) == ("repo", "", "main", "solarized")
+    assert (bare.title, bare.repo_url, bare.branch, bare.theme) == ("repo", "", "main", "plain")
 
     from_env = load_options(src, {}, environ)
     assert (from_env.repo_url, from_env.branch) == ("https://github.com/me/from-env", "release")

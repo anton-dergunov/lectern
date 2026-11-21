@@ -20,7 +20,7 @@ from playwright.sync_api import sync_playwright
 
 from lectern import library
 
-THEMES = ["solarized-light", "solarized-dark", "plain-light", "plain-dark", "eink", "eink-colour"]
+THEMES = ["plain-light", "plain-dark", "solarized-light", "solarized-dark", "eink", "eink-colour"]
 ENGINES = ["chromium", "webkit"]
 DEFAULT_PAGES = 4
 

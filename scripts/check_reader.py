@@ -211,10 +211,15 @@ def run(engine_name: str, playwright) -> bool:
         results.append(check("same place after a text-size change", same, f"{after} -> {resized}"))
 
         # ---- Settings ----
+        bar_color = page.evaluate("document.querySelector('meta[name=theme-color]').content")
+        first = theme(page) == "plain-light" and bar_color == "#ffffff"
+        results.append(
+            check("a first visit is black on white", first, f"{theme(page)} {bar_color}")
+        )
         page.get_by_role("button", name="Dark", exact=True).click()
-        results.append(check("dark mode", theme(page) == "solarized-dark", theme(page)))
-        page.get_by_role("button", name="Black & white").click()
-        results.append(check("black and white", theme(page) == "plain-dark", theme(page)))
+        results.append(check("dark mode", theme(page) == "plain-dark", theme(page)))
+        page.get_by_role("button", name="Solarized").click()
+        results.append(check("solarized", theme(page) == "solarized-dark", theme(page)))
         page.get_by_role("button", name="Hidden").click()
         open_cells = page.locator("details.src[open]").count()
         results.append(check("code hidden", open_cells == 0, open_cells))
@@ -222,12 +227,12 @@ def run(engine_name: str, playwright) -> bool:
         page.reload()
         settle(page)
         bar_color = page.evaluate("document.querySelector('meta[name=theme-color]').content")
-        kept = theme(page) == "plain-dark" and bar_color == "#000000"
+        kept = theme(page) == "solarized-dark" and bar_color == "#002b36"
         kept = kept and page.locator("details.src[open]").count() == 0
         results.append(check("settings kept after a reload", kept, f"{theme(page)} {bar_color}"))
         page.get_by_role("button", name="Reading settings").click()
         page.get_by_role("button", name="Shown").click()
-        page.get_by_role("button", name="Solarized").click()
+        page.get_by_role("button", name="Black & white").click()
         page.get_by_role("button", name="Light", exact=True).click()
         page.locator("#settings").get_by_role("button", name="Done").click()
         results.append(check("code shown again", page.locator("details.src[open]").count() > 0))
@@ -640,7 +645,7 @@ def run(engine_name: str, playwright) -> bool:
         wraps = page.locator(".highlight pre").first.evaluate("e => getComputedStyle(e).whiteSpace")
         results.append(check("code wraps instead of scrolling", wraps == "pre-wrap", wraps))
         page.get_by_role("button", name="Reading settings").click()
-        page.get_by_role("button", name="Solarized").click()
+        page.get_by_role("button", name="Black & white").click()
         page.locator("#settings").get_by_role("button", name="Done").click()
         results.append(check("pager gone outside e-ink", not page.locator(".pager").is_visible()))
 
@@ -1019,7 +1024,7 @@ def run(engine_name: str, playwright) -> bool:
 
                 # Names on notes: this device's own, and a review added by someone else.
                 marker.get_by_role("button", name="Reading settings").click()
-                marker.get_by_role("button", name="Solarized").click()
+                marker.get_by_role("button", name="Black & white").click()
                 field = marker.get_by_label("Your name on notes")
                 field.fill("Anton")
                 marker.locator("#settings").get_by_role("button", name="Done").click()
@@ -1691,7 +1696,7 @@ def run(engine_name: str, playwright) -> bool:
         results.append(check("with their styles", local.evaluate(FONT_SIZE) == "19px"))
         local.get_by_role("button", name="Reading settings").click()
         local.get_by_role("button", name="Dark", exact=True).click()
-        results.append(check("and their settings", theme(local) == "solarized-dark", theme(local)))
+        results.append(check("and their settings", theme(local) == "plain-dark", theme(local)))
         local.get_by_role("button", name="Light", exact=True).click()
         local.locator("#settings").get_by_role("button", name="Done").click()
         local.get_by_role("link", name="Back to Fixtures").click()

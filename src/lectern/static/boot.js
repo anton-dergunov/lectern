@@ -5,7 +5,7 @@
 
   var KEY = "lectern:prefs";
   var DEFAULTS = {
-    family: "solarized",
+    family: "plain",
     mode: "light",
     size: 19,
     width: "m",

@@ -71,7 +71,7 @@ Notebooks are shown as they were last saved, including ones you have not committ
 
 **Finding your way.** Each notebook has a contents list. A marker beside each heading folds everything under it, and the contents list can collapse the whole notebook to its outline and open just the part you pick. Reopen a notebook and you are where you stopped reading. After following a link to another document, the arrow in the top bar takes you back to the one you came from, at the place you left it, and a second arrow goes forward again. The top bar gets out of the way while you read down and comes back when you scroll up.
 
-**Reading settings.** The **Aa** button sets the text size, the column width (from narrow to the full window), the colours (Solarized or black and white, light or dark, or following the system) and whether code cells are shown at all. Settings are kept on each device. They start from sizes that suit the device: a tablet, a phone, a desktop or an e-ink reader.
+**Reading settings.** The **Aa** button sets the text size, the column width (from narrow to the full window), the colours (black on white by default, or Solarized, light or dark, or following the system) and whether code cells are shown at all. Settings are kept on each device. They start from sizes that suit the device: a tablet, a phone, a desktop or an e-ink reader.
 
 **E-ink.** On an e-ink reader the e-ink theme is chosen by itself: black on white, with nothing animated. Pages are turned with the buttons, a tap on either edge of the screen, or the page keys, instead of scrolling. A page starts and ends on a whole line, and begins with the last two lines of the page before, so you never lose your place. On an e-ink screen with colour, it can colour code and printed output. Pictures are in colour either way. A tap on the page number hides the top bar, and another brings it back.
 
@@ -225,7 +225,7 @@ exclude = ["tools/*"]
 Also available:
 
 - `branch`: the branch for links to the repository (default `main`);
-- `theme`: `solarized`, `plain` or `eink`, the colours a first-time visitor sees;
+- `theme`: `plain` (black and white, the default), `solarized` or `eink`, the colours a first-time visitor sees;
 - `markdown`: as the command-line option;
 - `include`, `exclude`: patterns matched against each path from the top of the folder, where `*` also matches `/`.
 

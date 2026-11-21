@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="solarized-light" data-width="m"{% if static_site %} data-static{% endif %}{% if default_family %} data-default-family="{{ default_family }}"{% endif %}>
+<html lang="en" data-theme="plain-light" data-width="m"{% if static_site %} data-static{% endif %}{% if default_family %} data-default-family="{{ default_family }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 {% if csp %}
@@ -120,8 +120,8 @@
     <section class="setting">
       <h3>Colours</h3>
       <div class="choice">
-        <button type="button" data-pref="family" data-value="solarized">Solarized</button>
         <button type="button" data-pref="family" data-value="plain">Black &amp; white</button>
+        <button type="button" data-pref="family" data-value="solarized">Solarized</button>
         <button type="button" data-pref="family" data-value="eink">E-ink</button>
       </div>
       <div class="choice" data-inks>

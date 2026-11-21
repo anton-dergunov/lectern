@@ -28,7 +28,7 @@ Lectern does both. It turns notebooks and markdown into clean, readable pages. I
 
 **Make it yours** (remembered on each device)
 - Text size, and column width from narrow to the full screen.
-- Solarized or black-and-white colours, light or dark, or following the system.
+- Black-and-white colours by default, or Solarized; light or dark, or following the system.
 - Sensible starting sizes for a tablet, a phone, a desktop or an e-ink reader.
 
 **At home on e-ink**
